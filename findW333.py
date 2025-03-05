@@ -1,148 +1,123 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-class BeamformingOptimizer:
-    def __init__(self, N, K, SNR_dB, sigma2=1, iter_max=100):
-        """
-        Initialize the BeamformingOptimizer with system parameters.
+# Parameter Settings
+N = 4  # Number of base station transmit antennas
+K = 10  # Number of users
+SNR_dB = 20  # Signal-to-noise ratio in dB
+sigma2 = 1  # Noise power
+P = 10**(SNR_dB / 10) * sigma2  # Transmit power constraint
+iter = 1  # Iteration counter
+iter_max = 100  # Maximum number of iterations
 
-        Parameters:
-        - N (int): Number of base station antennas
-        - K (int): Number of users
-        - SNR_dB (float): Signal-to-noise ratio in dB
-        - sigma2 (float): Noise variance (default=1)
-        - iter_max (int): Maximum number of iterations (default=100)
-        """
-        self.N = N
-        self.K = K
-        self.SNR_dB = SNR_dB
-        self.sigma2 = sigma2
-        self.P = 10 ** (SNR_dB / 10) * sigma2  # Transmit power constraint
-        self.iter_max = iter_max
-        self.h = self.generate_channel()  # Channel matrix
-        self.w = self.initialize_beamformers()  # Beamforming vectors
-        self.rate_history = []  # Store sum rate per iteration
+# Channel Matrix Generation
+# Generate K channel vectors h, each an N-dimensional complex vector
+h = np.sqrt(0.5) * (np.random.randn(N, K) + 1j * np.random.randn(N, K))
 
-    def generate_channel(self):
-        """
-        Generate the channel matrix h of size N x K with complex Gaussian entries.
-        """
-        return np.sqrt(1 / 2) * (np.random.randn(self.N, self.K) + 1j * np.random.randn(self.N, self.K))
+# Initialize Precoding Vectors
+w_ini1 = np.random.randn(N, K) + 1j * np.random.randn(N, K)
+n = np.trace(w_ini1 @ w_ini1.conj().T)  # Trace of w_ini1 * w_ini1^H
+w_ini = np.sqrt(P) * (w_ini1 / np.sqrt(n))  # Normalize to satisfy power constraint
+w = w_ini.copy()  # Current precoding matrix
 
-    def initialize_beamformers(self):
-        """
-        Initialize beamforming vectors w with random complex entries, normalized to power P.
-        """
-        w_ini = np.random.randn(self.N, self.K) + 1j * np.random.randn(self.N, self.K)
-        n = np.trace(w_ini @ w_ini.conj().T).real  # Total power of initial w
-        return np.sqrt(self.P) * (w_ini / np.sqrt(n))
+# Function Definitions
 
-    def generate_U(self):
-        """
-        Generate receive filters U for each user.
-        """
-        sum1 = sum(np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2 for i in range(self.K))
-        U = np.array([np.dot(self.h[:, i].conj().T, self.w[:, i]) / (sum1 + self.sigma2) 
-                      for i in range(self.K)], dtype=complex)
-        return U
+def cal_R(h, w, sigma2, K):
+    """Calculate the sum rate."""
+    sum1 = 0
+    for i in range(K):
+        sum1 += np.vdot(h[:, i], w[:, i]) * np.vdot(w[:, i], h[:, i])
+    interfere = np.zeros(K)
+    R = 0
+    for i in range(K):
+        interfere[i] = sum1 - np.vdot(h[:, i], w[:, i]) * np.vdot(w[:, i], h[:, i])
+        INR = sigma2 + interfere[i]  # Interference plus noise
+        sinal = np.vdot(h[:, i], w[:, i]) * np.vdot(w[:, i], h[:, i])  # Desired signal
+        R += np.log2(1 + (sinal / INR))  # Rate for user i
+    return np.abs(R)
 
-    def generate_W(self):
-        """
-        Generate weights W for each user.
-        """
-        sum1 = sum(np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2 for i in range(self.K))
-        W = np.array([1 / (1 - (np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2) / (sum1 + self.sigma2)) 
-                      for i in range(self.K)])
-        return W
+def generate_U(h, w, sigma2, K):
+    """Generate receive filters U."""
+    U = np.zeros(K, dtype=complex)
+    sum1 = 0
+    for i in range(K):
+        sum1 += np.vdot(h[:, i], w[:, i]) * np.vdot(w[:, i], h[:, i])
+    for i in range(K):
+        U[i] = np.vdot(h[:, i], w[:, i]) / (sum1 + sigma2)
+    return U
 
-    def generate_V(self, U, W):
-        """
-        Generate optimized beamforming vectors V using bisection to enforce power constraint.
+def generate_W(h, w, sigma2, K):
+    """Generate weights W."""
+    W = np.zeros(K)
+    sum1 = 0
+    for i in range(K):
+        sum1 += np.vdot(h[:, i], w[:, i]) * np.vdot(w[:, i], h[:, i])
+    for i in range(K):
+        temp = np.vdot(w[:, i], h[:, i]) * (1 / (sum1 + sigma2)) * np.vdot(h[:, i], w[:, i])
+        W[i] = 1 / (1 - temp)
+    return W
 
-        Parameters:
-        - U (ndarray): Receive filters
-        - W (ndarray): Weights
-        """
-        sum2 = np.zeros((self.N, self.N), dtype=complex)
-        for i in range(self.K):
-            sum2 += (U[i] * W[i] * np.conj(U[i])) * np.outer(self.h[:, i], self.h[:, i].conj())
-
-        mu_min = 0
-        mu_max = 10
-        iter = 0
-        iter_max = 100
-
-        while True:
-            mu1 = (mu_min + mu_max) / 2
-            V_opt = np.zeros((self.N, self.K), dtype=complex)
-            Pt = 0
-            for i in range(self.K):
-                V_opt[:, i] = np.linalg.solve(sum2 + mu1 * np.eye(self.N), self.h[:, i]) * (U[i] * W[i])
-                Pt += np.real(np.dot(V_opt[:, i].conj().T, V_opt[:, i]))
-            
-            if Pt > self.P:
-                mu_min = mu1
-            else:
-                mu_max = mu1
-            
-            iter += 1
-            if abs(mu_max - mu_min) < 1e-5 or iter > iter_max:
-                break
+def generate_V(h, U, W, N, K, P):
+    """Generate precoding vectors V."""
+    sum2 = np.zeros((N, N), dtype=complex)
+    for i in range(K):
+        sum2 += np.outer(h[:, i], h[:, i].conj()) * U[i] * W[i] * np.conj(U[i])
+    
+    # Binary search for optimal mu
+    mu_max = 10
+    mu_min = 0
+    iter = 0
+    iter_max = 100
+    
+    while True:
+        mu1 = (mu_min + mu_max) / 2
+        Pt = 0
+        V_opt = np.zeros((N, K), dtype=complex)
+        for i in range(K):
+            A = sum2 + mu1 * np.eye(N)
+            b = h[:, i] * U[i] * W[i]
+            V_opt[:, i] = np.linalg.solve(A, b)
+            Pt += np.real(np.trace(np.outer(V_opt[:, i], V_opt[:, i].conj())))
         
-        mu = mu1
-        print(f'求解最优mu共迭代{iter}次, mu*={mu}, P={Pt}')
+        if Pt > P:
+            mu_min = mu1
+        else:
+            mu_max = mu1
         
-        V = np.zeros((self.N, self.K), dtype=complex)
-        for i in range(self.K):
-            V[:, i] = np.linalg.solve(sum2 + mu * np.eye(self.N), self.h[:, i]) * (U[i] * W[i])
+        iter += 1
         
-        return V
+        if abs(mu_max - mu_min) < 1e-5 or iter > iter_max:
+            break
+    
+    mu = mu1
+    print(f'求解最优mu共迭代{iter}次,mu*={mu},P={Pt}')
+    
+    V = np.zeros((N, K), dtype=complex)
+    for i in range(K):
+        A = sum2 + mu * np.eye(N)
+        b = h[:, i] * U[i] * W[i]
+        V[:, i] = np.linalg.solve(A, b)
+    
+    return V
 
-    def cal_R(self):
-        """
-        Calculate the sum rate R.
-        """
-        sum1 = sum(np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2 for i in range(self.K))
-        R = 0
-        for i in range(self.K):
-            interfere = sum1 - np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2
-            INR = self.sigma2 + interfere
-            signal = np.abs(np.dot(self.h[:, i].conj().T, self.w[:, i]))**2
-            R += np.log2(1 + signal / INR)
-        return np.abs(R)
+# Iterative Algorithm
+rate = []
+while True:
+    R_pre = cal_R(h, w, sigma2, K)  # Previous sum rate
+    rate.append(R_pre)
+    U = generate_U(h, w, sigma2, K)  # Update receive filters
+    W_sup = generate_W(h, w, sigma2, K)  # Update weights
+    w = generate_V(h, U, W_sup, N, K, P)  # Update precoding vectors
+    R = cal_R(h, w, sigma2, K)  # Current sum rate
+    iter += 1
+    if abs(R - R_pre) < 1e-5 or iter > iter_max:  # Convergence check
+        break
 
-    def optimize(self):
-        """
-        Run the iterative optimization to maximize the sum rate.
-        
-        Returns:
-        - rate_history (list): Sum rate at each iteration
-        """
-        iter = 0
-        while True:
-            R_pre = self.cal_R()
-            self.rate_history.append(R_pre)
-            U = self.generate_U()
-            W = self.generate_W()
-            self.w = self.generate_V(U, W)
-            R = self.cal_R()
-            iter += 1
-            if abs(R - R_pre) < 1e-5 or iter > self.iter_max:
-                break
-        self.rate_history.append(R)
-        print(f'求解和速率共迭代{iter}次')
-        return self.rate_history
+rate.append(R)  # Append final rate
+print(f'求解和速率共迭代{iter}次')
 
-# Example usage
-if __name__ == "__main__":
-    N = 4      # Number of antennas
-    K = 10     # Number of users
-    SNR_dB = 20  # SNR in dB
-    optimizer = BeamformingOptimizer(N, K, SNR_dB)
-    rate_history = optimizer.optimize()
-
-    # Plot the results
-    plt.plot(rate_history, 'r-o')
-    plt.ylabel('和速率 (Sum Rate)')
-    plt.xlabel('迭代次数 (Iteration)')
-    plt.show()
+# Plot Results
+plt.plot(rate, 'r-o')
+plt.ylabel('和速率')
+plt.xlabel('迭代次数')
+plt.show()
