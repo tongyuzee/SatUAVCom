@@ -75,8 +75,8 @@ def generate_V(h, U, W, N, K, P):
         V_opt = np.zeros((N, K), dtype=complex)
         for i in range(K):
             A = sum2 + mu1 * np.eye(N)
-            b = h[:, i] * U[i] * W[i]
-            V_opt[:, i] = np.linalg.solve(A, b)
+            # b = h[:, i] * U[i] * W[i]
+            V_opt[:, i] = np.linalg.solve(A, h[:, i])* U[i] * W[i]
             Pt += np.real(np.trace(np.outer(V_opt[:, i], V_opt[:, i].conj())))
         
         if Pt > P:
@@ -95,8 +95,8 @@ def generate_V(h, U, W, N, K, P):
     V = np.zeros((N, K), dtype=complex)
     for i in range(K):
         A = sum2 + mu * np.eye(N)
-        b = h[:, i] * U[i] * W[i]
-        V[:, i] = np.linalg.solve(A, b)
+        # b = h[:, i] * U[i] * W[i]
+        V[:, i] = np.linalg.solve(A, h[:, i])* U[i] * W[i]
     
     return V
 
