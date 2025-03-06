@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-class WMMSEOptimizer:
-    def __init__(self, S, U, N, M, P_s, sigma2, gain_factor, seed=42):
+class FindW_WMMSE:
+    def __init__(self, S, U, N, M, h_su, H_sR, g_Ru, W_init, Phi, P_s, sigma2, seed=42):
         """初始化系统参数和信道矩阵"""
         np.random.seed(seed)
         self.S = S  # 卫星数量
@@ -11,25 +11,22 @@ class WMMSEOptimizer:
         self.M = M  # RIS单元数量
         self.P_s = P_s  # 发射功率
         self.sigma2 = sigma2  # 噪声方差
-        self.gain_factor = gain_factor
         
         # 生成信道矩阵
-        self.h_su = np.random.randn(U, S, N) + 1j * np.random.randn(U, S, N)  # LEO到UAV信道
-        self.H_sR = np.random.randn(S, N, M) + 1j * np.random.randn(S, N, M)  # LEO到RIS信道
-        self.G_Ru = np.random.randn(U, M) + 1j * np.random.randn(U, M)  # RIS到UAV信道
-        self.Phi = np.diag(np.exp(1j * np.random.uniform(0, 2 * np.pi, M)))  # RIS相移矩阵
+        self.h_su = h_su
+        self.H_sR = H_sR
+        self.g_Ru = g_Ru
+        self.Phi = Phi
         
-        # 计算等效信道矩阵 H
+        # 计算等效信道矩阵 H ， size: S*N x U
         self.H = np.zeros((S * N, U), dtype=complex)
         for u in range(U):
             for s in range(S):
-                h_tilde = self.h_su[u, s, :].T + self.G_Ru[u, :] @ self.Phi @ self.H_sR[s, :, :].T
+                h_tilde = self.h_su[u, s, :].T + self.g_Ru[u, :] @ self.Phi @ self.H_sR[s, :, :].T
                 self.H[s * N:(s + 1) * N, u] = h_tilde
         
-        # 初始化预编码矩阵 W 并归一化
-        self.W = np.random.randn(S * N, U) + 1j * np.random.randn(S * N, U)
-        total_power = np.trace(self.W @ self.W.conj().T)
-        self.W = self.W * np.sqrt(self.P_s / total_power)
+        # 初始化预编码矩阵 W 并归一化， size: S*N x U
+        self.W = W_init
     
     def compute_sum_rate(self):
         """计算和速率 R"""
@@ -104,10 +101,10 @@ class WMMSEOptimizer:
             self.W = self.generate_W(G, La)
             R = self.compute_sum_rate()
             if abs(R - R_pre) < tol:
-                print(f'求解和速率共迭代{iter}次')
                 break
+        print(f'求解和速率共迭代{iter}次')
         rate.append(R)
-        return rate
+        return self.W, rate
     
     def plot_rate(self, rate):
         """绘制和速率随迭代次数的变化"""
@@ -116,15 +113,27 @@ class WMMSEOptimizer:
         plt.xlabel('iterations')
         plt.show()
 
-# 使用示例
-S = 2  # 卫星数量
-U = 3  # 无人机数量
-N = 4  # 天线数量
-M = 5  # RIS单元数量
-P_s = 1  # 发射功率
-sigma2 = 1e-4  # 噪声方差
-gain_factor = 20.0  # 增益因子
+if __name__ == '__main__':
+    S = 2  # 卫星数量
+    U = 3  # 无人机数量
+    N = 4  # 天线数量
+    M = 5  # RIS单元数量
+    P_s = 1  # 发射功率
+    sigma2 = 1e-4  # 噪声方差
+    # gain_factor = 20.0  # 增益因子
 
-optimizer = WMMSEOptimizer(S, U, N, M, P_s, sigma2, gain_factor)
-rate = optimizer.optimize()
-optimizer.plot_rate(rate)
+    # 生成信道矩阵
+    h_su = np.random.randn(U, S, N) + 1j * np.random.randn(U, S, N)
+    H_sR = np.random.randn(S, N, M) + 1j * np.random.randn(S, N, M)
+    g_Ru = np.random.randn(U, M) + 1j * np.random.randn(U, M)
+
+    # 初始化预编码矩阵 W 并归一化， size: S*N x U
+    W_init = np.random.randn(S * N, U) + 1j * np.random.randn(S * N, U)
+    total_power = np.trace(W_init @ W_init.conj().T)
+    W_init = W_init * np.sqrt(P_s / total_power)
+    # 初始化RIS矩阵 Phi, size: M x M
+    Phi = np.diag(np.exp(1j * np.random.uniform(0, 2 * np.pi, M)))  
+
+    optimizer = FindW_WMMSE(S, U, N, M, h_su, H_sR, g_Ru, W_init, Phi, P_s, sigma2)
+    W_opt, rate = optimizer.optimize()
+    optimizer.plot_rate(rate)
