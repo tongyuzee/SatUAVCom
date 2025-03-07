@@ -133,10 +133,14 @@ if __name__ == '__main__':
             h_tilde = h_su[u, s, :].T + g_Ru[u, :] @ Phi @ H_sR[s, :, :].T
             H[s * N:(s + 1) * N, u] = h_tilde
 
+    # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
+    H = H * 2
+    sigma2 = sigma2 * 4
+
     # 初始化预编码矩阵 W 并归一化， size: S*N x U
     W_init = H / np.linalg.norm(H, 'fro') * np.sqrt(P_s)
-    
 
     optimizer = FindW_WMMSE(S, U, N, M, H, W_init, P_s, sigma2)
     W_opt, rate = optimizer.optimize()
+    print(W_opt, rate)
     optimizer.plot_rate(rate)
