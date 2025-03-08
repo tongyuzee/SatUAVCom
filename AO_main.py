@@ -124,8 +124,9 @@ for iter in range(1000):
     g_Ru_t = torch.tensor(g_Ru, dtype=torch.complex128).clone().detach()
     W_su_t = torch.tensor(W_su, dtype=torch.complex128).clone().detach()
     theta_t = torch.tensor(theta, dtype=torch.float64).clone().detach()
-    R_init = rate_w[-1]
-    
+
+    # R_init = rate_w[-1]
+    R_init = 0
     PhiOptimization = FindPhi_GradientAscent.RISOptimization(S, U, N, M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, sigma2)
     theta, rate_phi = PhiOptimization.optimize_theta(2000, 0.01)
     PhiOptimization.plot_results(rate_phi)

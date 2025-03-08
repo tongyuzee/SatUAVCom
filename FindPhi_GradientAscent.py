@@ -13,7 +13,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 class RISOptimization:
-    def __init__(self, S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init, sigma2=1e-3):
+    def __init__(self, S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init=0, sigma2=1e-3):
         # 系统参数
         self.S = S  # LEO 卫星数量
         self.U = U  # UAV 数量
@@ -42,18 +42,18 @@ class RISOptimization:
                 # 等效信道: h_{s,u}^T + G_{R,u}^T Phi H_{s,R}^T
                 # 注意 h_su 的索引变为 [u, s, :] 因为形状改为 (U, S, N)
                 equiv_channel = self.h_su[u, s, :]+ self.g_Ru[u, :]@ Phi @ self.H_sR[s, :, :].T
-                signal += torch.dot(equiv_channel , self.w_su[u, s, :])
+                signal += torch.vdot(equiv_channel , self.w_su[u, s, :])
             signal_power = torch.abs(signal) ** 2
 
             # 干扰部分 (分母)
             interference_power = torch.tensor(0.0, dtype=torch.complex128)
             for u_prime in range(self.U):
                 if u_prime != u:
-                    interference_sum = torch.zeros(0.0, dtype=torch.complex128)
+                    interference_sum = torch.tensor(0.0, dtype=torch.complex128)
                     for s in range(self.S):
                         equiv_channel = self.h_su[u, s, :] + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
-                        interference_sum += torch.dot(equiv_channel, self.w_su[u_prime, s, :])
-                    interference_power = torch.abs(interference_sum) ** 2
+                        interference_sum += torch.vdot(equiv_channel, self.w_su[u_prime, s, :])
+                    interference_power += torch.abs(interference_sum) ** 2
             # SINR
             SINR[u] = signal_power / (interference_power + self.sigma2)
             # 计算 R_sum
@@ -126,6 +126,6 @@ if __name__ == "__main__":
 
     theta_init = torch.tensor(np.random.uniform(0, 2 * np.pi, M), dtype=torch.float64, requires_grad=True)
 
-    optimizer = RISOptimization(S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, sigma2=1e-3)
+    optimizer = RISOptimization(S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init=0, sigma2=1e-3)
     theta_opt, R_sum_history = optimizer.optimize_theta(max_iter=2000, learning_rate=0.01)
     optimizer.plot_results(R_sum_history)
