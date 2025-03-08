@@ -2,9 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class FindW_WMMSE:
-    def __init__(self, S, U, N, M, H, W_init, P_s, sigma2, seed=42):
+    def __init__(self, S, U, N, M, H, W_init, P_s, sigma2):
         """初始化系统参数和信道矩阵"""
-        np.random.seed(seed)
         self.S = S  # 卫星数量
         self.U = U  # 无人机数量
         self.N = N  # 天线数量
@@ -20,45 +19,55 @@ class FindW_WMMSE:
     
     def compute_sum_rate(self):
         """计算和速率 R"""
-        sum1 = 0
-        for i in range(self.U):
-            sum1 += np.vdot(self.H[:, i], self.W[:, i]) * np.vdot(self.W[:, i], self.H[:, i])
-        interfere = np.zeros(self.U)
         R = 0
-        for i in range(self.U):
-            interfere[i] = np.abs(sum1 - np.vdot(self.H[:, i], self.W[:, i]) * np.vdot(self.W[:, i], self.H[:, i]))  # sum1 - |<H_i, W_i>|^2 np.abs()只是为了消除警告
-            INR = self.sigma2 + interfere[i]
-            sinal = np.vdot(self.H[:, i], self.W[:, i]) * np.vdot(self.W[:, i], self.H[:, i])
-            R += np.log2(1 + (sinal / INR))
+        for u in range(self.U):
+            signal = np.vdot(self.H[:, u], self.W[:, u]) * np.vdot(self.W[:, u], self.H[:, u])
+            interfere = 0
+            for u_prime in range(self.U):
+                if u_prime != u:
+                    interfere += np.vdot(self.H[:, u], self.W[:, u_prime]) * np.vdot(self.W[:, u_prime], self.H[:, u])
+            INR = self.sigma2 + interfere
+            R += np.log2(1 + (signal / INR))
         return np.abs(R)
     
     def generate_G(self):
         """生成接收滤波器 G"""
-        sum1 = 0
-        for i in range(self.U):
-            sum1 += np.vdot(self.H[:, i], self.W[:, i]) * np.vdot(self.W[:, i], self.H[:, i])
         G = np.zeros(self.U, dtype=complex)
-        for i in range(self.U):
-            G[i] = np.vdot(self.H[:, i], self.W[:, i]) / (sum1 + self.sigma2)
+        for u in range(self.U):
+            # 计算信号功率 |<H_u, W_u>|^2
+            signal = np.vdot(self.H[:, u], self.W[:, u]) * np.vdot(self.W[:, u], self.H[:, u])
+            # 计算干扰功率 \sum_{u'=1, u'\=u}^U |<H_u, W_u'>|^2
+            interfere = 0
+            for u_prime in range(self.U):
+                if u_prime != u:
+                    interfere += np.vdot(self.H[:, u], self.W[:, u_prime]) * np.vdot(self.W[:, u_prime], self.H[:, u])
+            # 
+            G[u] = np.vdot(self.H[:, u], self.W[:, u]) / (signal + interfere + self.sigma2)
         return G
     
     def generate_La(self):
-        """生成权重 La"""
-        sum1 = 0
-        for i in range(self.U):
-            sum1 += np.vdot(self.H[:, i], self.W[:, i]) * np.vdot(self.W[:, i], self.H[:, i])
+        """生成均方误差权重 La"""
         La = np.zeros(self.U)
-        for i in range(self.U):
-            temp = np.vdot(self.W[:, i], self.H[:, i]) * (1 / (sum1 + self.sigma2)) * np.vdot(self.H[:, i], self.W[:, i])
-            La[i] = 1 / (1 - np.abs(temp))  # 1 / (1 - |<H_i, W_i>|^2 / (sum1 + sigma2))  np.abs(temp)只是为了消除警告
+        for u in range(self.U):
+            # 计算信号功率 |<H_u, W_u>|^2
+            signal = np.vdot(self.H[:, u], self.W[:, u]) * np.vdot(self.W[:, u], self.H[:, u])
+            # 计算总功率 \sum_{u'=1}^U |<H_u, W_u'>|^2 + sigma^2
+            total_power = 0
+            for u_prime in range(self.U):
+                total_power += np.vdot(self.H[:, u], self.W[:, u_prime]) * np.vdot(self.W[:, u_prime], self.H[:, u])
+            total_power += self.sigma2
+            # 计算 MSE_i = 1 - signal / total_power
+            MSE_i = 1 - signal / total_power
+            # 计算 La[i] = 1 / MSE_i
+            La[u] = 1 / (1 - np.abs(MSE_i))
         return La
     
     def generate_W(self, G, La):
         """生成预编码向量 W"""
         S_N = self.S * self.N
         sum2 = np.zeros((S_N, S_N), dtype=complex)
-        for i in range(self.U):
-            sum2 += np.outer(self.H[:, i], self.H[:, i].conj()) * G[i] * La[i] * np.conj(G[i])
+        for u_prime in range(self.U):
+            sum2 += np.outer(self.H[:, u_prime], self.H[:, u_prime].conj()) * G[u_prime] * La[u_prime] * np.conj(G[u_prime])
         
         mu_max = 10
         mu_min = 0
@@ -67,10 +76,10 @@ class FindW_WMMSE:
             mu = (mu_min + mu_max) / 2
             P_current = 0
             W_opt = np.zeros((S_N, self.U), dtype=complex)
-            for i in range(self.U):
+            for u in range(self.U):
                 A = sum2 + mu * np.eye(S_N)
-                W_opt[:, i] = np.linalg.solve(A, self.H[:, i]) * G[i] * La[i]
-                P_current += np.real(np.trace(np.outer(W_opt[:, i], W_opt[:, i].conj())))
+                W_opt[:, u] = np.linalg.solve(A, self.H[:, u] * G[u] * La[u])
+                P_current += np.real(np.trace(np.outer(W_opt[:, u], W_opt[:, u].conj())))
             # print(f'iter={iter}, mu*={mu}, P={P_current}')
             if P_current > self.P_s:
                 mu_min = mu
@@ -81,7 +90,7 @@ class FindW_WMMSE:
         # print(f'求解最优mu共迭代{iter}次, mu*={mu}, P={P_current}')
         return W_opt
     
-    def optimize(self, max_iter=200, tol=1e-5):
+    def optimize(self, max_iter=200, tol=1e-4):
         """执行WMMSE算法的迭代优化"""
         rate = []
         R_pre = self.compute_sum_rate()
@@ -97,7 +106,6 @@ class FindW_WMMSE:
             if abs(R - rate[-2]) < tol:
                 break
         print(f'求解和速率共迭代{iter}次, R={R}')
-        # rate.append(R)
         return self.W, rate
     
     def plot_rate(self, rate):
@@ -111,7 +119,7 @@ if __name__ == '__main__':
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    M = 5  # RIS单元数量
+    M = 16  # RIS单元数量
     P_s = 1  # 发射功率
     sigma2 = 1e-4  # 噪声方差
     # gain_factor = 20.0  # 增益因子
@@ -142,5 +150,9 @@ if __name__ == '__main__':
 
     optimizer = FindW_WMMSE(S, U, N, M, H, W_init, P_s, sigma2)
     W_opt, rate = optimizer.optimize()
+    W_su = np.zeros((U, S, N), dtype=complex)
+    for u in range(U):
+        for s in range(S):
+            W_su[u, s, :] = W_opt[s * N:(s + 1) * N, u]
     print(W_opt, rate)
     optimizer.plot_rate(rate)
