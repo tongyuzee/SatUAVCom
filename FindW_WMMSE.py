@@ -1,4 +1,5 @@
 import numpy as np
+import cvxpy as cp
 import matplotlib.pyplot as plt
 
 class FindW_WMMSE:
@@ -89,6 +90,39 @@ class FindW_WMMSE:
                 break
         # print(f'求解最优mu共迭代{iter}次, mu*={mu}, P={P_current}')
         return W_opt
+    
+    def generate_W2(self, G, La):
+        """使用 CVXPY 生成预编码向量 W"""
+        S_N = self.S * self.N  # 矩阵维度：卫星天线总数
+        U = self.U            # 用户（无人机）数量
+        H = self.H            # 信道矩阵
+        P_s = self.P_s        # 总功率约束
+
+        # 计算 A 矩阵：sum_{u} La[u] * |G[u]|^2 * H[:, u] @ H[:, u].conj().T
+        A = np.zeros((S_N, S_N), dtype=complex)
+        for u in range(U):
+            A += La[u] * np.abs(G[u])**2 * np.outer(H[:, u], H[:, u].conj())
+
+        # 计算 B 矩阵：B[:, u] = La[u] * conj(G[u]) * H[:, u]
+        B = np.zeros((S_N, U), dtype=complex)
+        for u in range(U):
+            B[:, u] = La[u] * np.conj(G[u]) * H[:, u]
+
+        # 定义 CVXPY 优化变量 W，复数矩阵
+        W = cp.Variable((S_N, U), complex=True)
+
+        # 定义目标函数
+        objective = cp.Minimize(cp.real(cp.trace(cp.conj(W).T @ A @ W)) - 2 * cp.real(cp.trace(cp.conj(B).T @ W)))
+
+        # 定义功率约束
+        constraints = [cp.sum([cp.norm(W[:, u], 2)**2 for u in range(U)]) <= P_s]
+
+        # 构造并求解优化问题
+        prob = cp.Problem(objective, constraints)
+        prob.solve()
+
+        # 返回优化后的预编码矩阵 W
+        return W.value
     
     def optimize(self, max_iter=200, tol=1e-4):
         """执行WMMSE算法的迭代优化"""
