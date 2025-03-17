@@ -101,7 +101,7 @@ class RISOptimization:
         plt.plot(R_sum_history, label="R_sum")
         plt.xlabel("Iteration")
         plt.ylabel("Sum Rate (R_sum)")
-        plt.title("Sum Rate vs. Iteration (PyTorch Optimization)")
+        plt.title("Sum Rate vs. Iteration")
         plt.grid(True)
         plt.legend()
         plt.show()

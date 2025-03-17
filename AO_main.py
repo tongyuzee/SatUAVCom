@@ -72,6 +72,11 @@ gain_factor = 1e8  # 增益因子
 Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(10, U, S, N, M)
 h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
 
+# 在通信系统中，信号功率通常是∣h^H w∣^2 
+h_su = np.conj(h_su)
+H_sR = np.conj(H_sR)
+g_Ru = np.conj(g_Ru)
+
 # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
 h_su = h_su * gain_factor
 H_sR = H_sR * gain_factor

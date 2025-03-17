@@ -59,7 +59,7 @@ class FindW_WMMSE:
             # 计算 MSE_i = 1 - signal / total_power
             MSE_i = 1 - signal / total_power
             # 计算 La[i] = 1 / MSE_i
-            La[u] = 1 / (1 - np.abs(MSE_i))
+            La[u] = 1 / (np.abs(MSE_i))
         return La
     
     def generate_W(self, G, La):
