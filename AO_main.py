@@ -20,6 +20,7 @@ def compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, w_su, theta):
     Phi = np.diag(exp_j_theta)  # (M, M) 的对角矩阵
 
     SINR = np.zeros(U)
+    sigout = np.zeros(U)
     for u in range(U):
         # 信号部分 (分子)
         signal = 0
@@ -29,6 +30,8 @@ def compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, w_su, theta):
             equiv_channel = h_su[u, s, :]+ g_Ru[u, :]@ Phi @ H_sR[s, :, :].T
             signal += np.vdot(equiv_channel , w_su[u, s, :])
         signal_power = np.abs(signal) ** 2
+
+        sigout[u] = signal
 
         # 干扰部分 (分母)
         interference_power = 0
@@ -41,9 +44,9 @@ def compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, w_su, theta):
                 interference_power += np.abs(interf) ** 2
         # SINR
         SINR[u] = signal_power / (interference_power + sigma2)
-        # 计算 R_sum
-        R_sum = np.sum(np.log2(1 + SINR))
-    return SINR, R_sum
+    # 计算 R_sum
+    R_sum = np.sum(np.log2(1 + SINR))
+    return SINR, R_sum, sigout
 
 def compute_sum_rate(U, S, N, M, H, W, sigma2):
     """计算和速率 R"""
@@ -84,7 +87,7 @@ sigma2 = sigma2 * gain_factor ** 2
 
 theta = np.random.uniform(0, 2 * np.pi, M) # 随机初始化theta
 
-Rate = []
+Rate = [0]
 
 for iter in range(1000):
 
@@ -96,13 +99,15 @@ for iter in range(1000):
             h_tilde = h_su[u, s, :].T + g_Ru[u, :] @ Phi @ H_sR[s, :, :].T
             H[s * N:(s + 1) * N, u] = h_tilde
 
-    # 基于 MRT 的预编码矩阵 W 初始化， size: S*N x U
-    W = np.zeros((S * N, U), dtype=complex)
-    for i in range(U):
-        h_i = H[:, i]  # 第 i 个用户的信道向量
-        w_i = h_i / np.linalg.norm(h_i, 2)  # 归一化
-        W[:, i] = w_i * np.sqrt(P_s / U)  # 分配功率
-
+    if iter == 0:
+        # 基于 MRT 的预编码矩阵 W 初始化， size: S*N x U
+        W = np.zeros((S * N, U), dtype=complex)
+        for i in range(U):
+            h_i = H[:, i]  # 第 i 个用户的信道向量
+            w_i = h_i / np.linalg.norm(h_i, 2)  # 归一化
+            W[:, i] = w_i * np.sqrt(P_s / U)  # 分配功率
+    else:
+        W = W_opt
 
     # W_su = np.zeros((U, S, N), dtype=complex)
     # for u in range(U):
@@ -119,8 +124,8 @@ for iter in range(1000):
     for u in range(U):
         for s in range(S):
             W_su[u, s, :] = W_opt[s * N:(s + 1) * N, u]
-    Woptimization.plot_rate(rate_w)
-    S_w, R_w = compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, W_su, theta)
+    # Woptimization.plot_rate(rate_w)
+    S_w, R_w, sigout_w= compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, W_su, theta)
     Rate.append(R_w)
 
     # 梯度上升算法求解最优RIS矩阵
@@ -134,11 +139,18 @@ for iter in range(1000):
     R_init = 0
     PhiOptimization = FindPhi_GradientAscent.RISOptimization(S, U, N, M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, sigma2)
     theta, rate_phi = PhiOptimization.optimize_theta(2000, 0.01)
-    PhiOptimization.plot_results(rate_phi)
-    S_phi, R_phi = compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, W_su, theta)
+    # PhiOptimization.plot_results(rate_phi)
+    S_phi, R_phi, sigout_phi = compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, W_su, theta)
     Rate.append(R_phi)
 
     print(f'迭代次数: {iter}, FindW: rate_w={rate_w[-1]}, FindPhi: rate_phi={rate_phi[-1]}')
 
-    if iter > 0 and abs(Rate[-1] - Rate[-2]) < 1e-3:
+    if iter > 0 and abs(Rate[-1] - Rate[-2]) < 1e-4 and abs(Rate[-2] - Rate[-3]) < 1e-3:
         break
+
+plt.figure(figsize=(10, 6))
+plt.plot(Rate)
+plt.ylabel('Sum Rate') 
+plt.xlabel('iterations')
+plt.grid(True)
+plt.show()

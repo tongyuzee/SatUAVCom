@@ -103,9 +103,11 @@ class FindW_WMMSE:
             self.W = self.generate_W(G, La)
             R = self.compute_sum_rate()
             rate.append(R)
-            if abs(R - rate[-2]) < tol:
+            if rate[-1] - rate[-2] < -1e-4:
+                raise ValueError("FindW: Reward is decreasing!")
+            if abs(rate[-1] - rate[-2]) < tol:
                 break
-        print(f'求解和速率共迭代{iter}次, R={R}')
+        print(f'FindW: iter={iter:03d}, R_w = {R:.5f}')
         return self.W, rate
     
     def plot_rate(self, rate):

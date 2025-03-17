@@ -57,7 +57,7 @@ class RISOptimization:
             # SINR
             SINR[u] = signal_power / (interference_power + self.sigma2)
             # 计算 R_sum
-            R_sum = torch.sum(torch.log2(1 + SINR))
+        R_sum = torch.sum(torch.log2(1 + SINR))
         return R_sum
 
     def optimize_theta(self, max_iter=2000, learning_rate=0.01):
@@ -65,7 +65,7 @@ class RISOptimization:
         theta = self.theta_init.clone().detach().requires_grad_(True)
         optimizer = torch.optim.Adam([theta], lr=learning_rate)
         R_sum_history = [self.R_init]
-        for iteration in range(max_iter):
+        for iter in range(max_iter):
             optimizer.zero_grad()
             R_sum = self.compute_Rsum(theta)
             (-R_sum).backward()  # 取负值以最大化 R_sum
@@ -77,11 +77,15 @@ class RISOptimization:
 
             R_sum_history.append(R_sum.item())
 
+            if R_sum_history[-1] - R_sum_history[-2] < -1e4:
+                raise ValueError("FindPhi: Reward is decreasing!")
+
             if np.abs(R_sum_history[-1] - R_sum_history[-2]) < 1e-5:
                 break
 
-            if (iteration + 1) % 20 == 0:
-                print(f"Iteration {iteration + 1}/{max_iter}, R_sum = {R_sum.item():.4f}")
+            # if (iteration + 1) % 20 == 0:
+            #     print(f"Iteration {iteration + 1}/{max_iter}, R_sum = {R_sum.item():.4f}")
+        print(f'FindPhi: iter={iter:03d}, R_phi = {R_sum.item():.5f}')
 
         return theta.detach().numpy(), R_sum_history
 
