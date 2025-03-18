@@ -19,6 +19,7 @@ class RISAlternatingOptimization:
         self.H_sR = H_sR  # 卫星到RIS的信道
         self.g_Ru = g_Ru  # RIS到无人机的信道
         self.set_seed(seed)
+        self.W_su = np.zeros((self.U, self.S, self.N), dtype=complex) # 预编码矩阵
         self.theta = np.random.uniform(0, 2 * np.pi, M)  # 随机初始化RIS相位
         self.Rate = [0]  # 存储和速率
 
@@ -75,11 +76,13 @@ class RISAlternatingOptimization:
         exp_j_theta = np.exp(1j * self.theta)
         Phi = np.diag(exp_j_theta)  # RIS相位矩阵，size: M x M
         SINR = np.zeros(self.U)
+        sigout = np.zeros(self.U, dtype=complex)
         for u in range(self.U):
             signal = 0
             for s in range(self.S):
                 equiv_channel = self.h_su[u, s, :] + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
                 signal += np.vdot(equiv_channel, W_su[u, s, :])
+            sigout[u] = signal
             signal_power = np.abs(signal) ** 2
             interference_power = 0
             for u_prime in range(self.U):
@@ -91,7 +94,7 @@ class RISAlternatingOptimization:
                     interference_power += np.abs(interf) ** 2
             SINR[u] = signal_power / (interference_power + self.sigma2)
         R_sum = np.sum(np.log2(1 + SINR))
-        return SINR, R_sum
+        return sigout, SINR, R_sum
 
     def run_optimization(self, max_iter=1000, tol=1e-4):
         """执行联合优化过程"""
@@ -99,20 +102,20 @@ class RISAlternatingOptimization:
             H = self.compute_equivalent_channel()
             W = self.initialize_W(H) if iter == 0 else W_opt
             W_opt, rate_w = self.optimize_W(H, W)
-            W_su = np.zeros((self.U, self.S, self.N), dtype=complex)
+            # self.W_su = np.zeros((self.U, self.S, self.N), dtype=complex)
             for u in range(self.U):
                 for s in range(self.S):
-                    W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
-            _, R_w = self.compute_Sinr_Rsum(W_su)
+                    self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
+            _, _, R_w = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_w)
-            theta, rate_phi = self.optimize_theta(W_su, 0)  # R_init=0，与原代码一致
+            theta, rate_phi = self.optimize_theta(self.W_su, 0)  # R_init=0，与原代码一致
             self.theta = theta
-            _, R_phi = self.compute_Sinr_Rsum(W_su)
+            sigout_phi, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_phi)
             print(f'迭代次数: {iter}, FindW: rate_w={rate_w[-1]}, FindPhi: rate_phi={rate_phi[-1]}')
-            if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < tol and abs(self.Rate[-2] - self.Rate[-3]) < tol * 10:
+            if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < tol and abs(self.Rate[-2] - self.Rate[-3]) < tol:
                 break
-        return self.Rate
+        return sigout_phi, self.Rate[-1], self.W_su, self.theta
 
     def plot_results(self):
         """绘制和速率曲线"""
@@ -125,7 +128,6 @@ class RISAlternatingOptimization:
 
 def main():
     """主函数：设置参数并运行优化"""
-    # 原代码第66~88行内容
     set_seed(42)
     S = 2  # 卫星数量
     U = 3  # 无人机数量
@@ -151,7 +153,7 @@ def main():
 
     # 实例化并运行优化
     system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-    system.run_optimization()
+    sigout, Rate, _, _ = system.run_optimization()
     system.plot_results()
 
 def set_seed(seed):

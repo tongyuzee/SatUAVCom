@@ -55,7 +55,7 @@ class RISOptimization:
                         interference_sum += torch.vdot(equiv_channel, self.w_su[u_prime, s, :])
                     interference_power += torch.abs(interference_sum) ** 2
             # SINR
-            SINR[u] = signal_power / (interference_power + self.sigma2)
+            SINR[u] = torch.abs(signal_power / (interference_power + self.sigma2))
             # 计算 R_sum
         R_sum = torch.sum(torch.log2(1 + SINR))
         return R_sum
@@ -102,7 +102,7 @@ class RISOptimization:
     def plot_results(self, R_sum_history):
         # 绘制结果
         plt.figure(figsize=(8, 6))
-        plt.plot(R_sum_history, label="R_sum")
+        plt.plot(R_sum_history[1:], label="R_sum")
         plt.xlabel("Iteration")
         plt.ylabel("Sum Rate (R_sum)")
         plt.title("Sum Rate vs. Iteration")
