@@ -137,24 +137,41 @@ def main():
     sigma2 = 1e-16  # 噪声方差
     gain_factor = 1e8  # 增益因子
 
-    # 生成信道矩阵
-    Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(10, U, S, N, M)
-    h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
 
-    # 在通信系统中，信号功率通常是∣h^H w∣^2 
-    h_su = np.conj(h_su)
-    H_sR = np.conj(H_sR)
-    g_Ru = np.conj(g_Ru)
+    sigo = []
+    Rate_list = []
+    for t in range(1000):
+        # 生成信道矩阵
+        Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
+        h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
 
-    # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
-    h_su = h_su * gain_factor
-    H_sR = H_sR * gain_factor
-    sigma2 = sigma2 * gain_factor ** 2
+        # 在通信系统中，信号功率通常是∣h^H w∣^2 
+        h_su = np.conj(h_su)
+        H_sR = np.conj(H_sR)
+        g_Ru = np.conj(g_Ru)
 
-    # 实例化并运行优化
-    system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-    sigout, Rate, _, _ = system.run_optimization()
-    system.plot_results()
+        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
+        h_su = h_su * gain_factor
+        H_sR = H_sR * gain_factor
+        sigma2 = 1e-16  # 噪声方差
+        sigma2 = sigma2 * gain_factor ** 2
+
+        # 实例化并运行优化
+        system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
+        sigout, Rate, _, _ = system.run_optimization()
+        # system.plot_results()
+        sigo.append(sigout)
+        Rate_list.append(Rate)
+
+        if t >= Sat_UAV_comm.TT:
+            break
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(Rate_list)
+    plt.ylabel('Sum Rate')
+    plt.xlabel('iterations')
+    plt.grid(True)
+    plt.show()
 
 def set_seed(seed):
     """全局设置随机种子"""
