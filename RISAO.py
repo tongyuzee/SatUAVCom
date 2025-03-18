@@ -112,7 +112,7 @@ class RISAlternatingOptimization:
             self.theta = theta
             sigout_phi, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_phi)
-            print(f'迭代次数: {iter}, FindW: rate_w={rate_w[-1]}, FindPhi: rate_phi={rate_phi[-1]}')
+            print(f'迭代次数: {iter}, FindW: iter={len(rate_w):3d}, rate_w={rate_w[-1]}, FindPhi: iter={len(rate_phi):3d}, rate_phi={rate_phi[-1]}')
             if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < tol and abs(self.Rate[-2] - self.Rate[-3]) < tol:
                 break
         return sigout_phi, self.Rate[-1], self.W_su, self.theta
@@ -140,7 +140,7 @@ def main():
 
     sigo = []
     Rate_list = []
-    for t in range(1000):
+    for t in range(0, 1000, 10):
         # 生成信道矩阵
         Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
         h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
@@ -169,7 +169,7 @@ def main():
     plt.figure(figsize=(10, 6))
     plt.plot(Rate_list)
     plt.ylabel('Sum Rate')
-    plt.xlabel('iterations')
+    plt.xlabel('time')
     plt.grid(True)
     plt.show()
 

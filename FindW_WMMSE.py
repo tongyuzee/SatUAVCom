@@ -141,7 +141,7 @@ class FindW_WMMSE:
                 raise ValueError("FindW: Reward is decreasing!")
             if abs(rate[-1] - rate[-2]) < tol:
                 break
-        print(f'FindW: iter={iter:03d}, R_w = {R:.5f}')
+        # print(f'FindW: iter={iter:03d}, R_w = {R:.5f}')
         return self.W, rate
     
     def plot_rate(self, rate):

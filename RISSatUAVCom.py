@@ -77,10 +77,16 @@ class RISSatUAVCom:
         self.hRIS = 110  # RIS高度，单位：米
         self.delta = self.wavelength / 10  # RIS的元素间距，单位：米
 
-        self.pUAV = np.array([[0, 0, self.RE + self.hTR] for _ in range(self.U)])
-        self.pRIS = [self.l, 0, self.RE + self.hRIS]
         self.theta = np.zeros(self.S)
         self.pSAT = np.zeros((self.S, 3))
+        self.pUAV_initial = np.array([
+            [0,-5e3, self.RE + self.hTR], 
+            [0, 50-5e3, self.RE + self.hTR], 
+            [50, 50-5e3, self.RE + self.hTR]
+            ])
+        self.pRIS_initial = np.array([50, -5e3, self.RE + self.hRIS])
+        self.v_formation = np.array([0, 20, 0])  # 编队速度，单位：m/s，沿 y 轴
+        
 
     def calculate_beta(self, G_X, G_Y, px, py):
         """计算电磁波传播的幅度增益。"""
@@ -93,6 +99,10 @@ class RISSatUAVCom:
         """计算卫星的位置"""
         self.theta = np.arange(self.S)*self.alpha + self.theta0 + self.w * self.current_t
         self.pSAT = np.array([[0, self.D * np.cos(x), self.D * np.sin(x)] for x in self.theta])
+
+            # 更新 UAV 和 RIS 的位置
+        self.pUAV = self.pUAV_initial + self.v_formation * self.current_t  # 广播到 (U, 3)
+        self.pRIS = self.pRIS_initial + self.v_formation * self.current_t  # (3,)
 
         return self.pSAT
 

@@ -85,7 +85,7 @@ class RISOptimization:
 
             # if (iteration + 1) % 20 == 0:
             #     print(f"Iteration {iteration + 1}/{max_iter}, R_sum = {R_sum.item():.4f}")
-        print(f'FindPhi: iter={iter:03d}, R_phi = {R_sum.item():.5f}')
+        # print(f'FindPhi: iter={iter:03d}, R_phi = {R_sum.item():.5f}')
 
         return theta.detach().numpy(), R_sum_history
 
