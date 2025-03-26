@@ -102,17 +102,17 @@ class RISSatUAVCom:
         # 更新 UAV 和 RIS 的位置
         self.pUAV = self.pUAV_initial + self.v_formation * self.current_t  # 广播到 (U, 3)
         self.pRIS = self.pRIS_initial + self.v_formation * self.current_t  # (3,)
-        return self.pSAT
+        # return self.pSAT, self.pUAV, self.pRIS
     
     def compensate_phase_difference(self):
         """
-        计算并补偿卫星到UAV之间距离差异引起的相位差异
+        计算并补偿卫星到UAV和RIS之间距离差异引起的相位差异
         返回补偿矩阵以用于预编码
         """
         phase_compensation_su = np.zeros((self.U, self.S), dtype=complex)
         phase_compensation_sR = np.zeros(self.S, dtype=complex)
         
-        # 计算每个卫星到每个UAV的距离
+        # 计算每个卫星到每个UAV和RIS的距离
         d_su = np.zeros((self.U, self.S))
         d_sR = np.zeros(self.S)
         for s in range(self.S):
@@ -122,10 +122,12 @@ class RISSatUAVCom:
         
         # 计算相位差异并生成补偿因子
         for s in range(self.S):
-            phase_compensation_sR[s] = np.exp(-1j * 2 * np.pi * (d_sR[s] - d_sR[0]) / self.wavelength)
+            ref_sR = np.min(d_sR)
+            phase_compensation_sR[s] = np.exp(-1j * 2 * np.pi * (d_sR[s] - ref_sR) / self.wavelength)
             for u in range(self.U):
                 # 计算距离差引起的相位差
-                phase_diff = 2 * np.pi * (d_su[u, s] - d_su[u, 0]) / self.wavelength
+                ref_su = np.min(d_su[u, :])
+                phase_diff = 2 * np.pi * (d_su[u, s] - ref_su) / self.wavelength
                 # 生成补偿因子（共轭形式以抵消相位差）
                 phase_compensation_su[u, s] = np.exp(-1j * phase_diff)
 
@@ -133,7 +135,7 @@ class RISSatUAVCom:
 
     def setup_channel(self):
         """设置信道并计算相关参数。"""
-        self.pSAT = self.current_position()
+        self.current_position()
         beta_su = np.zeros((self.U, self.S))  # size:(U, S)
         for u in range(self.U):
             for s in range(self.S):
@@ -176,7 +178,7 @@ class RISSatUAVCom:
             self.g_Ru[u] = beta_Ru[u] * np.exp(-1j * 2 * np.pi * d_Ru / self.wavelength) * np.array(np.ones(self.M))
 
         # sigma = np.array([beta_sR[i] / beta_su[i] * g_Ru * H_sR_LoS_1[i] for i in range(self.S)])
-        return self.h_su, self.H_sR, self.g_Ru, delta_phi_su, delta_phi_sR
+        return self.h_su, self.H_sR, self.g_Ru
 
     def f_sv(self, k, l, gamma):
         """生成导向向量"""

@@ -33,6 +33,7 @@ class FindPhi_GA:
         self.g_Ru = g_Ru  # g_{R,u}: U x M (相当于转置后的 1 x M)
         self.w_su = W_su  # w_{u,s}: U x S x N
         self.theta_init = theta_init  # 初始的 theta
+        # self.theta_init = torch.tensor(np.random.uniform(0, 2 * np.pi, M), dtype=torch.float64, requires_grad=True)
         self.R_init = R_init  # 初始的 R
 
     def compute_Rsum(self, theta):
@@ -52,7 +53,7 @@ class FindPhi_GA:
             signal_power = torch.abs(signal) ** 2
 
             # 干扰部分 (分母)
-            interference_power = torch.tensor(0.0, dtype=torch.complex128)
+            interference_power = torch.tensor(0.0, dtype=torch.float64)
             for u_prime in range(self.U):
                 if u_prime != u:
                     interference_sum = torch.tensor(0.0, dtype=torch.complex128)
@@ -60,8 +61,13 @@ class FindPhi_GA:
                         equiv_channel = self.h_su[u, s, :] + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
                         interference_sum += torch.vdot(equiv_channel, self.w_su[u_prime, s, :])
                     interference_power += torch.abs(interference_sum) ** 2
+            
+            # 添加数值稳定性检查
+            denom = interference_power + self.sigma2
+            if denom <= 1e-10:
+                denom = torch.tensor(1e-10, dtype=torch.float64)
             # SINR
-            SINR[u] = torch.abs(signal_power / (interference_power + self.sigma2))
+            SINR[u] = torch.abs(signal_power / denom)
             # 计算 R_sum
         R_sum = torch.sum(torch.log2(1 + SINR))
         return R_sum
@@ -70,11 +76,25 @@ class FindPhi_GA:
         # 初始化 theta 为可优化的参数
         theta = self.theta_init.clone().detach().requires_grad_(True)
         optimizer = torch.optim.Adam([theta], lr=learning_rate)
-        R_sum_history = [self.R_init]
+        # R_sum_history = [self.R_init]
+        R_sum_history = []
         for iter in range(max_iter):
             optimizer.zero_grad()
             R_sum = self.compute_Rsum(theta)
+            # 检查 R_sum 是否为有限值
+            if not torch.isfinite(R_sum):
+                print(f"Warning: Non-finite R_sum detected at iteration {iter}")
+                break
+
             (-R_sum).backward()  # 取负值以最大化 R_sum
+            
+            # # 梯度剪裁，防止梯度爆炸
+            # torch.nn.utils.clip_grad_norm_([theta], max_norm=1.0)
+            # 检查梯度是否包含 NaN
+            if not torch.all(torch.isfinite(theta.grad)):
+                print(f"Warning: NaN or Inf gradient detected at iteration {iter}")
+                break
+            
             optimizer.step()
 
             # 确保 theta 在 [0, 2pi) 范围内
@@ -83,11 +103,16 @@ class FindPhi_GA:
 
             R_sum_history.append(R_sum.item())
 
-            if R_sum_history[-1] - R_sum_history[-2] < -1e4:
-                raise ValueError("FindPhi: Reward is decreasing!")
-
-            if np.abs(R_sum_history[-1] - R_sum_history[-2]) < 1e-5:
+            # 检查 R_sum 历史是否正常
+            if len(R_sum_history) > 1 and not np.isfinite(R_sum_history[-1]):
+                print(f"Warning: Non-finite R_sum history detected at iteration {iter}")
                 break
+
+            if len(R_sum_history) > 1:
+                if R_sum_history[-1] - R_sum_history[-2] < -1e4:
+                    raise ValueError("FindPhi: Reward is decreasing!")
+                if np.abs(R_sum_history[-1] - R_sum_history[-2]) < 1e-5:
+                    break
 
             # if (iteration + 1) % 20 == 0:
             #     print(f"Iteration {iteration + 1}/{max_iter}, R_sum = {R_sum.item():.4f}")

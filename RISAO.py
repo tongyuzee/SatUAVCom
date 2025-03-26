@@ -74,7 +74,7 @@ class RISAlternatingOptimization:
         PhiOptimization = FindPhi_GradientAscent.FindPhi_GA(
             self.S, self.U, self.N, self.M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, self.sigma2
         )
-        theta, rate_phi = PhiOptimization.optimize_theta(2000, 0.01)
+        theta, rate_phi = PhiOptimization.optimize_theta()
         return theta, rate_phi
 
     def compute_Sinr_Rsum(self, W_su):
@@ -102,7 +102,7 @@ class RISAlternatingOptimization:
         R_sum = np.sum(np.log2(1 + SINR))
         return sigout, SINR, R_sum
 
-    def run_optimization(self, max_iter=1000, tol=1e-4):
+    def run_optimization(self, max_iter=1000, tol=1e-3):
         """执行联合优化过程"""
         for iter in range(max_iter):
             H = self.compute_equivalent_channel()
@@ -114,12 +114,12 @@ class RISAlternatingOptimization:
                     self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
             _, _, R_w = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_w)
-            theta, rate_phi = self.optimize_theta(self.W_su, 0)  # R_init=0，与原代码一致
+            theta, rate_phi = self.optimize_theta(self.W_su, R_w)  # R_init=0，与原代码一致
             self.theta = theta
             sigout_phi, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_phi)
-            print(f'迭代次数: {iter}, FindW: iter={len(rate_w):3d}, rate_w={rate_w[-1]}, FindPhi: iter={len(rate_phi):3d}, rate_phi={rate_phi[-1]}')
-            if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < tol and abs(self.Rate[-2] - self.Rate[-3]) < tol:
+            print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
+            if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 and abs(self.Rate[-2] - self.Rate[-3]) < 1e-3:
                 break
         return sigout_phi, self.Rate[-1], self.W_su, self.theta
 
@@ -150,13 +150,13 @@ def main():
     for t in T_list:
         print(f'当前时间：{t}')
 
-        if t == 230:
+        if t == 160:
             xxx = 10  # 用于调试
             pass # 用于调试
 
         # 生成信道矩阵
         Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
-        h_su, H_sR, g_Ru, _, _ = Sat_UAV_comm.setup_channel()
+        h_su, H_sR, g_Ru= Sat_UAV_comm.setup_channel()
 
         # 在通信系统中，信号功率通常是∣h^H w∣^2 
         h_su = np.conj(h_su)
@@ -184,8 +184,10 @@ def main():
     plt.ylabel('Sum Rate')
     plt.xlabel('Service time')
     plt.grid(True)
-    plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
+    # if not os.path.exists('fig'):
+    #         os.makedirs('fig')
+    # plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
+    # plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
     plt.show()
 
 def set_seed(seed):

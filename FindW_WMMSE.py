@@ -70,7 +70,7 @@ class FindW_WMMSE:
         return La
     
     def generate_W(self, G, La):
-        """生成预编码向量 W"""
+        """生成预编码向量 W，满足所有卫星对所有用户的全局总功率约束"""
         S_N = self.S * self.N
         sum2 = np.zeros((S_N, S_N), dtype=complex)
         for u_prime in range(self.U):
@@ -97,6 +97,65 @@ class FindW_WMMSE:
         # print(f'求解最优mu共迭代{iter}次, mu*={mu}, P={P_current}')
         return W_opt
     
+    def generate_W3(self, G, La):
+        """生成预编码向量 W，满足每颗卫星的单独功率约束"""
+        S_N = self.S * self.N
+        N = self.N
+        sum2 = np.zeros((S_N, S_N), dtype=complex)
+        for u_prime in range(self.U):
+            sum2 += np.outer(self.H[:, u_prime], self.H[:, u_prime].conj()) * G[u_prime] * La[u_prime] * np.conj(G[u_prime])
+        
+        # 假设每颗卫星的功率约束为 P_s / S（可根据需要调整为不同的 P_s^{(s)}）
+        P_s_array = np.ones(self.S) * self.P_s
+        # 初始化每个卫星的拉格朗日乘子 mu_s
+        mu_s = np.zeros(self.S)
+        mu_min = np.zeros(self.S)
+        mu_max = np.ones(self.S) * 10  # 初始上界设为10
+        
+        iter_max = 200
+        W_opt = np.zeros((S_N, self.U), dtype=complex)
+        
+        for iter in range(iter_max):
+            # 构建正则化矩阵 A
+            A = sum2.copy()
+            for s in range(self.S):
+                A[s * N:(s + 1) * N, s * N:(s + 1) * N] += mu_s[s] * np.eye(N)
+            
+            # 求解 W_opt
+            for u in range(self.U):
+                W_opt[:, u] = np.linalg.solve(A, self.H[:, u] * G[u] * La[u])
+            
+            # 计算每颗卫星的功率
+            P_current = np.zeros(self.S)
+            for s in range(self.S):
+                for u in range(self.U):
+                    W_s_u = W_opt[s * N:(s + 1) * N, u]
+                    P_current[s] += np.real(np.vdot(W_s_u, W_s_u))
+            
+            # 更新 mu_s 使用二分搜索
+            converged = True
+            for s in range(self.S):
+                if  abs(P_current[s] - P_s_array[s]) > 1e-3 and mu_max[s] - mu_min[s] > 1e-5:
+                    converged = False
+                    if P_current[s] > P_s_array[s]:
+                        mu_min[s] = mu_s[s]
+                        mu_s[s] = (mu_s[s] + mu_max[s]) / 2
+                    else:
+                        mu_max[s] = mu_s[s]
+                        mu_s[s] = (mu_min[s] + mu_s[s]) / 2
+            # print(f"迭代次数: {iter}, 每个卫星的功率分布:")
+            # for s in range(S):
+            #     print(f"卫星 {s+1}: mu={mu_s[s]:.10f} 功率：{P_current[s]:.10f}")
+            if converged:
+                break
+         # 最终调整
+        # for s in range(S):
+        #     if P_current[s] > P_s_array[s]:
+        #         scale = np.sqrt(P_s_array[s] / P_current[s])
+        #         W_opt[s*N:(s+1)*N, :] *= scale   
+        # print(f"迭代次数: {iter}, 每颗卫星功率: {P_current}")
+        return W_opt
+
     def generate_W2(self, G, La):
         """使用 CVXPY 生成预编码向量 W"""
         S_N = self.S * self.N  # 矩阵维度：卫星天线总数
@@ -144,7 +203,9 @@ class FindW_WMMSE:
             R = self.compute_sum_rate()
             rate.append(R)
             if rate[-1] - rate[-2] < -1e-4:
-                raise ValueError("FindW: Reward is decreasing!")
+                # raise ValueError("FindW: Reward is decreasing!")
+                print(f"FindW: Reward is decreasing at iteration {iter}")
+                break
             if abs(rate[-1] - rate[-2]) < tol:
                 break
         # print(f'FindW: iter={iter:03d}, R_w = {R:.5f}')
@@ -202,9 +263,42 @@ if __name__ == '__main__':
 
     optimizer = FindW_WMMSE(S, U, N, M, H, W_init, P_s, sigma2)
     W_opt, rate = optimizer.optimize()
+    # 将全局预编码矩阵重塑为每个用户、每个卫星的预编码矩阵
     W_su = np.zeros((U, S, N), dtype=complex)
     for u in range(U):
         for s in range(S):
             W_su[u, s, :] = W_opt[s * N:(s + 1) * N, u]
-    print(W_opt, rate)
+    
+    # 计算每个卫星的功率
+    satellite_power = np.zeros(S)
+    for s in range(S):
+        for u in range(U):
+            power = np.vdot(W_su[u, s, :], W_su[u, s, :]).real
+            satellite_power[s] += power
+    
+    # 计算每个用户的功率
+    user_power = np.zeros(U)
+    for u in range(U):
+        for s in range(S):
+            power = np.vdot(W_su[u, s, :], W_su[u, s, :]).real
+            user_power[u] += power
+    
+    # 计算总功率
+    total_power = np.sum(satellite_power)
+    
+    print("每个卫星的功率分布:")
+    for s in range(S):
+        print(f"卫星 {s+1}: {satellite_power[s]:.6f} ({satellite_power[s]/total_power*100:.2f}%)")
+    
+    print("\n每个用户的功率分布:")
+    for u in range(U):
+        print(f"用户 {u+1}: {user_power[u]:.6f} ({user_power[u]/total_power*100:.2f}%)")
+    
+    print(f"\n总功率: {total_power:.6f}")
+    print(f"期望总功率: {P_s}")
+    
+    # 显示总和速率
+    print(f"最终和速率: {rate[-1]:.6f}")
+    
+    # 绘制和速率随迭代次数的变化
     optimizer.plot_rate(rate)
