@@ -1,6 +1,12 @@
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot as plt
+import os
+
+# 设置全局字体为 Times New Roman
+plt.rcParams['font.family'] = 'Times New Roman'
+plt.rcParams['font.size'] = 14
+plt.rcParams['figure.autolayout'] = True
 
 class FindW_WMMSE:
     def __init__(self, S, U, N, M, H, W_init, P_s, sigma2):
@@ -146,9 +152,19 @@ class FindW_WMMSE:
     
     def plot_rate(self, rate):
         """绘制和速率随迭代次数的变化"""
+        plt.figure(figsize=(8, 6))
         plt.plot(rate)
-        plt.ylabel('Sum Rate')
-        plt.xlabel('iterations')
+        plt.ylabel('Sum Rate', fontsize=14)
+        plt.xlabel('Iterations', fontsize=14)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        # plt.title('Sum Rate vs. Iteration', fontsize=14)
+        plt.grid(True)
+        # 创建保存目录
+        if not os.path.exists('fig'):
+            os.makedirs('fig')
+        plt.savefig('fig/FindW_WMMSE.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig('fig/FindW_WMMSE.svg', format='svg', bbox_inches='tight')
         plt.show()
 
 if __name__ == '__main__':

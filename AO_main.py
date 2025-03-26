@@ -137,7 +137,7 @@ for iter in range(1000):
 
     # R_init = rate_w[-1]
     R_init = 0
-    PhiOptimization = FindPhi_GradientAscent.RISOptimization(S, U, N, M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, sigma2)
+    PhiOptimization = FindPhi_GradientAscent.FindPhi_GA(S, U, N, M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, sigma2)
     theta, rate_phi = PhiOptimization.optimize_theta(2000, 0.01)
     # PhiOptimization.plot_results(rate_phi)
     S_phi, R_phi, sigout_phi = compute_Sinr_Rsum(U, S, N, M, h_su, H_sR, g_Ru, W_su, theta)

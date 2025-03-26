@@ -2,6 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+
+# 设置全局字体为 Times New Roman
+plt.rcParams['font.family'] = 'Times New Roman'
+plt.rcParams['font.size'] = 14
+plt.rcParams['figure.autolayout'] = True
 
 def set_seed(seed):
     np.random.seed(seed)
@@ -12,7 +18,7 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-class RISOptimization:
+class FindPhi_GA:
     def __init__(self, S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init=0, sigma2=1e-3):
         # 系统参数
         self.S = S  # LEO 卫星数量
@@ -102,12 +108,17 @@ class RISOptimization:
     def plot_results(self, R_sum_history):
         # 绘制结果
         plt.figure(figsize=(8, 6))
-        plt.plot(R_sum_history[1:], label="R_sum")
-        plt.xlabel("Iteration")
-        plt.ylabel("Sum Rate (R_sum)")
-        plt.title("Sum Rate vs. Iteration")
+        plt.plot(R_sum_history[1:])
+        plt.xlabel("Iterations")
+        plt.ylabel("Sum Rate ")
+        # plt.title("Sum Rate vs. Iteration")
         plt.grid(True)
-        plt.legend()
+        # plt.legend()
+        # 创建保存目录
+        if not os.path.exists('fig'):
+            os.makedirs('fig')
+        plt.savefig('fig/FindPhi_GA.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig('fig/FindPhi_GA.svg', format='svg', bbox_inches='tight')
         plt.show()
 
 # 创建实例并运行
@@ -118,7 +129,7 @@ if __name__ == "__main__":
     N = 4  # 天线数量
     M = 16  # RIS单元数量
     P_s = 1  # 发射功率
-    sigma2 = 1e-3  # 噪声方差
+    sigma2 = 1e-4  # 噪声方差
 
     set_seed(42)
 
@@ -130,6 +141,6 @@ if __name__ == "__main__":
 
     theta_init = torch.tensor(np.random.uniform(0, 2 * np.pi, M), dtype=torch.float64, requires_grad=True)
 
-    optimizer = RISOptimization(S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init=0, sigma2=1e-3)
+    optimizer = FindPhi_GA(S, U, N, M, h_su, H_sR, g_Ru, W_su, theta_init, R_init=0, sigma2=1e-3)
     theta_opt, R_sum_history = optimizer.optimize_theta(max_iter=2000, learning_rate=0.01)
     optimizer.plot_results(R_sum_history)

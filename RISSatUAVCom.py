@@ -99,12 +99,37 @@ class RISSatUAVCom:
         """计算卫星的位置"""
         self.theta = np.arange(self.S)*self.alpha + self.theta0 + self.w * self.current_t
         self.pSAT = np.array([[0, self.D * np.cos(x), self.D * np.sin(x)] for x in self.theta])
-
-            # 更新 UAV 和 RIS 的位置
+        # 更新 UAV 和 RIS 的位置
         self.pUAV = self.pUAV_initial + self.v_formation * self.current_t  # 广播到 (U, 3)
         self.pRIS = self.pRIS_initial + self.v_formation * self.current_t  # (3,)
-
         return self.pSAT
+    
+    def compensate_phase_difference(self):
+        """
+        计算并补偿卫星到UAV之间距离差异引起的相位差异
+        返回补偿矩阵以用于预编码
+        """
+        phase_compensation_su = np.zeros((self.U, self.S), dtype=complex)
+        phase_compensation_sR = np.zeros(self.S, dtype=complex)
+        
+        # 计算每个卫星到每个UAV的距离
+        d_su = np.zeros((self.U, self.S))
+        d_sR = np.zeros(self.S)
+        for s in range(self.S):
+            d_sR[s] = np.linalg.norm(self.pRIS - self.pSAT[s])
+            for u in range(self.U):
+                d_su[u, s] = np.linalg.norm(self.pSAT[s] - self.pUAV[u])
+        
+        # 计算相位差异并生成补偿因子
+        for s in range(self.S):
+            phase_compensation_sR[s] = np.exp(-1j * 2 * np.pi * (d_sR[s] - d_sR[0]) / self.wavelength)
+            for u in range(self.U):
+                # 计算距离差引起的相位差
+                phase_diff = 2 * np.pi * (d_su[u, s] - d_su[u, 0]) / self.wavelength
+                # 生成补偿因子（共轭形式以抵消相位差）
+                phase_compensation_su[u, s] = np.exp(-1j * phase_diff)
+
+        return phase_compensation_su, phase_compensation_sR
 
     def setup_channel(self):
         """设置信道并计算相关参数。"""
@@ -128,16 +153,21 @@ class RISSatUAVCom:
 
         aoa_z = self.f_sv(self.M2, self.delta, np.sin(aoa_sR_e) * np.sin(aoa_sR_a))
         aoa_y = self.f_sv(self.M1, self.delta, np.sin(aoa_sR_e) * np.cos(aoa_sR_a))
-        
+
+        delta_phi_su, delta_phi_sR = self.compensate_phase_difference()  # size:(U, S) 用于补偿卫星到UAV之间的相位差
+
+        delta_phi_su = np.ones((self.U, self.S), dtype=complex)
+        delta_phi_sR = np.ones(self.S, dtype=complex)
+
         h_su_LoS = np.zeros((self.U, self.S, self.N), dtype=complex)  # size:(U, S, N)
         for u in range(self.U):
             for s in range(self.S):
-                h_su_LoS[u, s] = self.f_sv(self.N, self.wavelength / 2, np.sin(aod_su[u, s]))
+                h_su_LoS[u, s] = self.f_sv(self.N, self.wavelength / 2, np.sin(aod_su[u, s])) * delta_phi_su[u, s]
                 self.h_su[u, s] = beta_su[u, s] * (np.sqrt(self.k / (1 + self.k)) * h_su_LoS[u, s] + np.sqrt(1 / (1 + self.k)) * h_su_NLoS[u, s])
         
         H_sR_LoS_1 = np.array([np.kron(aoa_z[i], aoa_y[i]) for i in range(self.S)])  # size:(S, M=M2*M1)
         H_sR_LoS_2 = self.f_sv(self.N, self.wavelength / 2, np.sin(aod_sR))  # size:(I, N)
-        H_sR_LoS = np.array([H_sR_LoS_2[i].reshape(-1, 1) @ H_sR_LoS_1[i].reshape(1, -1) for i in range(self.S)])  # size:(S, N, M)
+        H_sR_LoS = np.array([H_sR_LoS_2[i].reshape(-1, 1) @ H_sR_LoS_1[i].reshape(1, -1) * delta_phi_sR[i] for i in range(self.S)])  # size:(S, N, M)
         H_sR_tmp = np.sqrt(self.k / (1 + self.k)) * H_sR_LoS + np.sqrt(1 / (1 + self.k)) * H_sR_NLoS
         self.H_sR = np.array([beta_sR[i]*H_sR_tmp[i] for i in range(self.S)])
 
@@ -146,7 +176,7 @@ class RISSatUAVCom:
             self.g_Ru[u] = beta_Ru[u] * np.exp(-1j * 2 * np.pi * d_Ru / self.wavelength) * np.array(np.ones(self.M))
 
         # sigma = np.array([beta_sR[i] / beta_su[i] * g_Ru * H_sR_LoS_1[i] for i in range(self.S)])
-        return self.h_su, self.H_sR, self.g_Ru
+        return self.h_su, self.H_sR, self.g_Ru, delta_phi_su, delta_phi_sR
 
     def f_sv(self, k, l, gamma):
         """生成导向向量"""

@@ -1,9 +1,15 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import os
 import RISSatUAVCom
 import FindW_WMMSE
 import FindPhi_GradientAscent
+
+# 设置全局字体为 Times New Roman
+plt.rcParams['font.family'] = 'Times New Roman'
+plt.rcParams['font.size'] = 14
+plt.rcParams['figure.autolayout'] = True
 
 class RISAlternatingOptimization:
     """RIS辅助通信系统的优化类"""
@@ -65,7 +71,7 @@ class RISAlternatingOptimization:
         g_Ru_t = torch.tensor(self.g_Ru, dtype=torch.complex128).clone().detach()
         W_su_t = torch.tensor(W_su, dtype=torch.complex128).clone().detach()
         theta_t = torch.tensor(self.theta, dtype=torch.float64).clone().detach()
-        PhiOptimization = FindPhi_GradientAscent.RISOptimization(
+        PhiOptimization = FindPhi_GradientAscent.FindPhi_GA(
             self.S, self.U, self.N, self.M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, self.sigma2
         )
         theta, rate_phi = PhiOptimization.optimize_theta(2000, 0.01)
@@ -140,10 +146,17 @@ def main():
 
     sigo = []
     Rate_list = []
-    for t in range(0, 1000, 10):
+    T_list = range(0, 1000, 10)
+    for t in T_list:
+        print(f'当前时间：{t}')
+
+        if t == 230:
+            xxx = 10  # 用于调试
+            pass # 用于调试
+
         # 生成信道矩阵
         Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
-        h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
+        h_su, H_sR, g_Ru, _, _ = Sat_UAV_comm.setup_channel()
 
         # 在通信系统中，信号功率通常是∣h^H w∣^2 
         h_su = np.conj(h_su)
@@ -166,11 +179,13 @@ def main():
         if t >= Sat_UAV_comm.TT:
             break
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(Rate_list)
+    plt.figure(figsize=(8, 6))
+    plt.plot(T_list[0:len(Rate_list)], Rate_list)
     plt.ylabel('Sum Rate')
-    plt.xlabel('time')
+    plt.xlabel('Service time')
     plt.grid(True)
+    plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
     plt.show()
 
 def set_seed(seed):
