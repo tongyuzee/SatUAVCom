@@ -178,6 +178,10 @@ def main():
 
         if t >= Sat_UAV_comm.TT:
             break
+    if not os.path.exists('data'):
+            os.makedirs('data')
+    # 保存 Rate_list 数据
+    np.save('data/Rate_list2.npy', np.array(Rate_list))
 
     plt.figure(figsize=(8, 6))
     plt.plot(T_list[0:len(Rate_list)], Rate_list)

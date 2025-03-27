@@ -106,7 +106,7 @@ class FindW_WMMSE:
             sum2 += np.outer(self.H[:, u_prime], self.H[:, u_prime].conj()) * G[u_prime] * La[u_prime] * np.conj(G[u_prime])
         
         # 假设每颗卫星的功率约束为 P_s / S（可根据需要调整为不同的 P_s^{(s)}）
-        P_s_array = np.ones(self.S) * self.P_s
+        P_s_array = np.ones(self.S) * self.P_s / self.S
         # 初始化每个卫星的拉格朗日乘子 mu_s
         mu_s = np.zeros(self.S)
         mu_min = np.zeros(self.S)
@@ -189,6 +189,33 @@ class FindW_WMMSE:
         # 返回优化后的预编码矩阵 W
         return W.value
     
+    def generate_W4(self, G, La):
+        """生成预编码向量 W，支持每颗卫星单独功率约束"""
+        S_N = self.S * self.N
+        W_opt = cp.Variable((S_N, self.U), complex=True)
+        
+        # 目标函数：加权MSE最小化
+        objective = 0
+        for u in range(self.U):
+            for u_prime in range(self.U):
+                objective += La[u] * cp.square(cp.abs(G[u] * (cp.conj(self.H[:, u]).T @ W_opt[:, u_prime]) - (1 if u == u_prime else 0)))
+        
+        # 约束：每颗卫星的功率 <= P_s / S（均匀分配）
+        constraints = []
+        for s in range(self.S):
+            # 提取卫星s的预编码部分（W_opt[s*N:(s+1)*N, :]）
+            W_s = W_opt[s*self.N : (s+1)*self.N, :]
+            constraints.append(cp.sum_squares(W_s) <= self.P_s / self.S)
+        
+        # 求解问题
+        problem = cp.Problem(cp.Minimize(objective), constraints)
+        problem.solve(solver=cp.SCS, verbose=False)
+        
+        if W_opt.value is None:
+            raise ValueError("CVXPY failed to find a solution.")
+        
+        return W_opt.value
+    
     def optimize(self, max_iter=200, tol=1e-4):
         """执行WMMSE算法的迭代优化"""
         rate = []
@@ -199,7 +226,7 @@ class FindW_WMMSE:
             # rate.append(R_pre)
             G = self.generate_G()
             La = self.generate_La()
-            self.W = self.generate_W(G, La)
+            self.W = self.generate_W4(G, La)
             R = self.compute_sum_rate()
             rate.append(R)
             if rate[-1] - rate[-2] < -1e-4:

@@ -77,10 +77,16 @@ class FindPhi_GA:
         theta = self.theta_init.clone().detach().requires_grad_(True)
         optimizer = torch.optim.Adam([theta], lr=learning_rate)
         # R_sum_history = [self.R_init]
+        best_R = -float('inf')
+        best_theta = theta.clone()
         R_sum_history = []
         for iter in range(max_iter):
             optimizer.zero_grad()
             R_sum = self.compute_Rsum(theta)
+            # 保存最佳结果
+            if R_sum > best_R:
+                best_R = R_sum
+                best_theta = theta.clone()
             # 检查 R_sum 是否为有限值
             if not torch.isfinite(R_sum):
                 print(f"Warning: Non-finite R_sum detected at iteration {iter}")
@@ -91,9 +97,12 @@ class FindPhi_GA:
             # # 梯度剪裁，防止梯度爆炸
             # torch.nn.utils.clip_grad_norm_([theta], max_norm=1.0)
             # 检查梯度是否包含 NaN
-            if not torch.all(torch.isfinite(theta.grad)):
-                print(f"Warning: NaN or Inf gradient detected at iteration {iter}")
-                break
+            # 梯度检查和处理
+            if not torch.isfinite(theta.grad).all():
+                print(f"Iter {iter}: Invalid gradients, using previous best theta")
+                theta.copy_(best_theta)
+                optimizer.zero_grad()
+                continue
             
             optimizer.step()
 
@@ -163,6 +172,7 @@ if __name__ == "__main__":
     g_Ru = torch.randn(U, M, dtype=torch.complex128)
     H_sR = torch.randn(S, N, M, dtype=torch.complex128)
     W_su = torch.randn(U, S, N, dtype=torch.complex128)
+    W_su = W_su / torch.norm(W_su) * torch.sqrt(torch.tensor(P_s, dtype=torch.float64))
 
     theta_init = torch.tensor(np.random.uniform(0, 2 * np.pi, M), dtype=torch.float64, requires_grad=True)
 
