@@ -132,7 +132,7 @@ class RISAlternatingOptimization:
         plt.grid(True)
         plt.show()
 
-def main():
+def main_service():
     """主函数：设置参数并运行优化"""
     set_seed(42)
     S = 2  # 卫星数量
@@ -173,6 +173,7 @@ def main():
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
         sigout, Rate, _, _ = system.run_optimization()
         # system.plot_results()
+        # sigout, Rate, _, _ = run(t, U, S, N, M, P_s, gain_factor)
         sigo.append(sigout)
         Rate_list.append(Rate)
 
@@ -188,11 +189,88 @@ def main():
     plt.ylabel('Sum Rate')
     plt.xlabel('Service time')
     plt.grid(True)
-    # if not os.path.exists('fig'):
-    #         os.makedirs('fig')
-    # plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
-    # plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
+    if not os.path.exists('fig'):
+            os.makedirs('fig')
+    plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
     plt.show()
+
+
+def analyze_M_impact(time=200, M_range=None):
+    """
+    分析固定时刻下和速率随RIS元素个数的变化
+    
+    参数:
+        time: 固定的时间点
+        M_range: RIS元素数量范围，默认为[4, 8, 16, 32, 64]
+    """
+    set_seed(42)  # 保证结果可重现
+    
+    if M_range is None:
+        M_range = [4, 8, 16, 32, 64]
+    
+    S = 2  # 卫星数量
+    U = 3  # 无人机数量
+    N = 4  # 天线数量
+    P_s = 1  # 发射功率
+    sigma2 = 1e-16  # 噪声方差
+    gain_factor = 1e8  # 增益因子
+    
+    sigoot_vs_M = []
+    rate_vs_M = []
+    print(f"分析时刻 t={time} 下和速率随RIS元素数量的变化关系")
+    
+    for M in M_range:
+        print(f"正在计算 M={M} 的和速率...")
+        
+        # 生成信道矩阵
+        Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(time, U, S, N, M)
+        h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
+        
+        # 在通信系统中，信号功率通常是∣h^H w∣^2 
+        h_su = np.conj(h_su)
+        H_sR = np.conj(H_sR)
+        g_Ru = np.conj(g_Ru)
+        
+        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变
+        h_su = h_su * gain_factor
+        H_sR = H_sR * gain_factor
+        sigma2_scaled = 1e-16 * gain_factor ** 2
+        
+        # 实例化并运行优化
+        system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2_scaled, h_su, H_sR, g_Ru)
+        sigout, rate, _, _ = system.run_optimization()
+        rate_vs_M.append(rate)
+        sigoot_vs_M.append(sigout)
+    
+    # 保存数据
+    if not os.path.exists('data'):
+        os.makedirs('data')
+    results = {'M_values': M_range, 'Rate_values': rate_vs_M}
+    np.savez('data/rate_vs_M.npz', **results)
+    
+    # 绘制结果
+    plt.figure(figsize=(8, 6))
+    plt.plot(M_range, rate_vs_M, 'o-', linewidth=2, markersize=10)
+    plt.xlabel('Number of RIS Elements (M)')
+    plt.ylabel('Sum Rate (bps/Hz)')
+    plt.grid(True)
+    plt.title(f'Sum Rate vs. RIS Elements at t={time}')
+    
+    # 在每个点上标注具体数值
+    for i, (m, r) in enumerate(zip(M_range, rate_vs_M)):
+        plt.annotate(f'{r:.2f}', xy=(m, r), xytext=(0, 10), 
+                    textcoords='offset points', ha='center')
+    
+    # 保存图表
+    if not os.path.exists('fig'):
+        os.makedirs('fig')
+    plt.tight_layout()
+    plt.savefig('fig/rate_vs_M.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig('fig/rate_vs_M.png', dpi=300, bbox_inches='tight')
+    plt.savefig('fig/rate_vs_M.svg', format='svg', bbox_inches='tight')
+    plt.show()
+    return M_range, rate_vs_M
 
 def set_seed(seed):
     """全局设置随机种子"""
@@ -205,4 +283,5 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    main()
+    # main_service()
+    analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
