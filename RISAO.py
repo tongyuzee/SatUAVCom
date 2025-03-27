@@ -27,7 +27,7 @@ class RISAlternatingOptimization:
         self.set_seed(seed)
         self.W_su = np.zeros((self.U, self.S, self.N), dtype=complex) # 预编码矩阵
         self.theta = np.random.uniform(0, 2 * np.pi, M)  # 随机初始化RIS相位
-        self.Rate = [0]  # 存储和速率
+        self.Rate = []  # 存储和速率
 
     def set_seed(self, seed):
         """设置随机种子以确保结果可重现"""
@@ -124,13 +124,62 @@ class RISAlternatingOptimization:
         return sigout_phi, self.Rate[-1], self.W_su, self.theta
 
     def plot_results(self):
-        """绘制和速率曲线"""
-        plt.figure(figsize=(10, 6))
-        plt.plot(self.Rate)
-        plt.ylabel('Sum Rate')
-        plt.xlabel('iterations')
-        plt.grid(True)
+        """绘制和速率曲线和误差曲线在同一张图上，使用双纵轴"""
+        fig, ax1 = plt.subplots(figsize=(8, 6))
+        
+        # 计算误差（相邻迭代之间的和速率变化）
+        errors = []
+        for i in range(1, len(self.Rate)):
+            errors.append(abs(self.Rate[i] - self.Rate[i-1]))
+        
+        # 和速率曲线 (左纵轴)
+        color = 'tab:blue'
+        ax1.set_xlabel('Iterations', fontsize=14)
+        ax1.set_ylabel('Sum Rate (bps/Hz)', color=color, fontsize=14)
+        line1 = ax1.plot(range(len(self.Rate)), self.Rate, color=color, 
+                        marker='o', linestyle='-', linewidth=2, 
+                        label='Sum Rate')
+        ax1.tick_params(axis='y', labelcolor=color)
+        
+        # 创建右侧纵轴用于误差曲线
+        ax2 = ax1.twinx()
+        color = 'tab:green'
+        ax2.set_ylabel('Error (absolute difference)', color=color, fontsize=14)
+        ax2.set_yscale('log')  # 使用对数坐标
+        line2 = ax2.plot(range(1, len(self.Rate)), errors, color=color, 
+                        marker='s', linestyle='--', linewidth=2,
+                        label='Error')
+        ax2.tick_params(axis='y', labelcolor=color)
+        
+        # 添加图例 - 合并两个轴的图例
+        lines = line1 + line2
+        labels = [l.get_label() for l in lines]
+        ax1.legend(lines, labels, loc='center left', bbox_to_anchor=(0.75, 0.8), fontsize=12)
+        
+        # # 添加网格线 (仅适用于左轴)
+        # ax1.grid(True)
+        # plt.title('Sum Rate and Error vs. Iterations', fontsize=16)
+        plt.tight_layout()
+        
+        # 保存图表
+        if not os.path.exists('fig'):
+            os.makedirs('fig')
+        plt.savefig('fig/AO_with_errors.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig('fig/AO_with_errors.svg', format='svg', bbox_inches='tight')
+        plt.savefig('fig/AO_with_errors.png', dpi=300, bbox_inches='tight')
+        
         plt.show()
+        
+        # # 也保存原始的单轴图表
+        # plt.figure(figsize=(8, 6))
+        # plt.plot(self.Rate, marker='o')
+        # plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
+        # plt.xlabel('Iterations', fontsize=14)
+        # plt.grid(True)
+        # plt.savefig('fig/AO.pdf', format='pdf', bbox_inches='tight')
+        # plt.savefig('fig/AO.svg', format='svg', bbox_inches='tight')
+        # plt.savefig('fig/AO.png', dpi=300, bbox_inches='tight')
+        # plt.close()
 
 def main_service():
     """主函数：设置参数并运行优化"""
@@ -240,6 +289,7 @@ def analyze_M_impact(time=200, M_range=None):
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2_scaled, h_su, H_sR, g_Ru)
         sigout, rate, _, _ = system.run_optimization()
+        system.plot_results()
         rate_vs_M.append(rate)
         sigoot_vs_M.append(sigout)
     
@@ -284,4 +334,5 @@ def set_seed(seed):
 
 if __name__ == "__main__":
     # main_service()
-    analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
+    # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
+    analyze_M_impact(time=260, M_range=[1024])

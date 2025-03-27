@@ -120,7 +120,7 @@ class FindPhi_GA:
             if len(R_sum_history) > 1:
                 if R_sum_history[-1] - R_sum_history[-2] < -1e4:
                     raise ValueError("FindPhi: Reward is decreasing!")
-                if np.abs(R_sum_history[-1] - R_sum_history[-2]) < 1e-5:
+                if np.abs(R_sum_history[-1] - R_sum_history[-2]) < 1e-4:
                     break
 
             # if (iteration + 1) % 20 == 0:
