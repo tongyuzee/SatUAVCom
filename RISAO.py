@@ -112,16 +112,21 @@ class RISAlternatingOptimization:
             for u in range(self.U):
                 for s in range(self.S):
                     self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
-            _, _, R_w = self.compute_Sinr_Rsum(self.W_su)
+            sigout, _, R_w = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_w)
-            theta, rate_phi = self.optimize_theta(self.W_su, R_w)  # R_init=0，与原代码一致
-            self.theta = theta
-            sigout_phi, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
-            self.Rate.append(R_phi)
-            print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
-            if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 and abs(self.Rate[-2] - self.Rate[-3]) < 1e-3:
-                break
-        return sigout_phi, self.Rate[-1], self.W_su, self.theta
+            if self.M > 0:
+                theta, rate_phi = self.optimize_theta(self.W_su, R_w)  # R_init=0，与原代码一致
+                self.theta = theta
+                sigout, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
+                self.Rate.append(R_phi)
+                print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
+                if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 and abs(self.Rate[-2] - self.Rate[-3]) < 1e-3:
+                    break
+            else: # 如果没有RIS元素，则只优化W
+                print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}')
+                if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 :
+                    break
+        return sigout, self.Rate[-1], self.W_su, self.theta
 
     def plot_results(self):
         """绘制和速率曲线和误差曲线在同一张图上，使用双纵轴"""
@@ -245,7 +250,7 @@ def main_service():
     plt.show()
 
 
-def analyze_M_impact(time=200, M_range=None):
+def analyze_M_impact(time=200, M1_range=None):
     """
     分析固定时刻下和速率随RIS元素个数的变化
     
@@ -255,8 +260,8 @@ def analyze_M_impact(time=200, M_range=None):
     """
     set_seed(42)  # 保证结果可重现
     
-    if M_range is None:
-        M_range = [4, 8, 16, 32, 64]
+    if M1_range is None:
+        M1_range = [4, 8, 16, 32, 64]
     
     S = 2  # 卫星数量
     U = 3  # 无人机数量
@@ -269,7 +274,8 @@ def analyze_M_impact(time=200, M_range=None):
     rate_vs_M = []
     print(f"分析时刻 t={time} 下和速率随RIS元素数量的变化关系")
     
-    for M in M_range:
+    for M1 in M1_range:
+        M = M1 ** 2  # RIS单元数量
         print(f"正在计算 M={M} 的和速率...")
         
         # 生成信道矩阵
@@ -289,28 +295,28 @@ def analyze_M_impact(time=200, M_range=None):
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2_scaled, h_su, H_sR, g_Ru)
         sigout, rate, _, _ = system.run_optimization()
-        system.plot_results()
+        # system.plot_results()
         rate_vs_M.append(rate)
         sigoot_vs_M.append(sigout)
     
     # 保存数据
     if not os.path.exists('data'):
         os.makedirs('data')
-    results = {'M_values': M_range, 'Rate_values': rate_vs_M}
+    results = {'M_values': M1_range, 'Rate_values': rate_vs_M}
     np.savez('data/rate_vs_M.npz', **results)
     
     # 绘制结果
     plt.figure(figsize=(8, 6))
-    plt.plot(M_range, rate_vs_M, 'o-', linewidth=2, markersize=10)
+    plt.plot(M1_range, rate_vs_M, 'o-', linewidth=2, markersize=10)
     plt.xlabel('Number of RIS Elements (M)')
     plt.ylabel('Sum Rate (bps/Hz)')
     plt.grid(True)
-    plt.title(f'Sum Rate vs. RIS Elements at t={time}')
+    # plt.title(f'Sum Rate vs. RIS Elements at t={time}')
     
-    # 在每个点上标注具体数值
-    for i, (m, r) in enumerate(zip(M_range, rate_vs_M)):
-        plt.annotate(f'{r:.2f}', xy=(m, r), xytext=(0, 10), 
-                    textcoords='offset points', ha='center')
+    # # 在每个点上标注具体数值
+    # for i, (m, r) in enumerate(zip(M_range, rate_vs_M)):
+    #     plt.annotate(f'{r:.2f}', xy=(m, r), xytext=(0, 10), 
+    #                 textcoords='offset points', ha='center')
     
     # 保存图表
     if not os.path.exists('fig'):
@@ -320,7 +326,7 @@ def analyze_M_impact(time=200, M_range=None):
     plt.savefig('fig/rate_vs_M.png', dpi=300, bbox_inches='tight')
     plt.savefig('fig/rate_vs_M.svg', format='svg', bbox_inches='tight')
     plt.show()
-    return M_range, rate_vs_M
+    return M1_range, rate_vs_M
 
 def set_seed(seed):
     """全局设置随机种子"""
@@ -335,4 +341,5 @@ def set_seed(seed):
 if __name__ == "__main__":
     # main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
-    analyze_M_impact(time=260, M_range=[1024])
+    M1_range = range(0, 800, 50)
+    analyze_M_impact(time=260,  M1_range = range(0, 100, 10))
