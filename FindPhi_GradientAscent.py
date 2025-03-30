@@ -114,7 +114,7 @@ class FindPhi_GA:
                 if R_sum_history[-1] - R_sum_history[-2] < -1e4:
                     raise ValueError("FindPhi: Reward is decreasing!")
                 recent_errors = [abs(R_sum_history[i] - R_sum_history[i - 1]) for i in range(-5, 0)]
-                if all(error < 1e-3 for error in recent_errors):
+                if all(error < 1e-5 for error in recent_errors):
                     break
 
             # if (iteration + 1) % 20 == 0:

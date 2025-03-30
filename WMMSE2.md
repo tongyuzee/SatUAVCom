@@ -222,3 +222,134 @@ WMMSE算法的具体实现如下：
 ### 结论
 
 这个问题可以使用WMMSE算法求解。通过将系统建模为等价的多用户MISO系统，并应用WMMSE的迭代优化步骤，可以有效求解使 \(R_{\text{sum}}\) 最大的 \(\boldsymbol{w}_{s,u}\)。上述推导提供了完整的理论基础和实现细节，适用于用户描述的通信场景。
+
+
+在波束成形优化中，当功率约束从对所有卫星的总功率限制改为每个卫星有独立的功率约束时，需要对波束成形更新步骤进行修改，并引入多个拉格朗日乘子以分别处理每个卫星的功率限制。以下是具体的修改和推导结果。
+
+---
+
+### **问题背景**
+
+在最初的问题中，功率约束是对所有卫星的总功率进行限制，形式为：
+\[
+\sum_{s=1}^{S} \sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_{\text{total}}
+\]
+其中：
+- \(S\) 是卫星数量，
+- \(U\) 是用户数量，
+- \(\mathbf{w}_{s,u} \in \mathbb{C}^{N \times 1}\) 是第 \(s\) 个卫星为第 \(u\) 个用户设计的波束成形向量（\(N\) 是每颗卫星的天线数），
+- \(P_{\text{total}}\) 是所有卫星的总功率预算。
+
+在这种情况下，WMMSE（加权最小均方误差）算法通过引入一个拉格朗日乘子 \(\mu\) 来处理总功率约束，波束成形向量的更新公式通常为：
+\[
+\mathbf{w}_u = \left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H + \mu \mathbf{I} \right)^{-1} \lambda_u g_u^* \mathbf{h}_u
+\]
+其中：
+- \(\mathbf{w}_u = [\mathbf{w}_{1,u}^T, \mathbf{w}_{2,u}^T, \dots, \mathbf{w}_{S,u}^T]^T \in \mathbb{C}^{SN \times 1}\) 是为用户 \(u\) 设计的堆叠波束成形向量，
+- \(\mathbf{h}_u = [\tilde{\mathbf{h}}_{1,u}^T, \tilde{\mathbf{h}}_{2,u}^T, \dots, \tilde{\mathbf{h}}_{S,u}^T]^T \in \mathbb{C}^{SN \times 1}\) 是用户 \(u\) 的堆叠信道向量，
+- \(\lambda_u\) 是用户 \(u\) 的权重，
+- \(g_u\) 是用户 \(u\) 的MMSE接收器，
+- \(\mu\) 是拉格朗日乘子，通过调整使得总功率约束满足。
+
+现在，功率约束改为每个卫星有独立的功率限制，即：
+\[
+\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s, \quad \forall s = 1, 2, \dots, S
+\]
+其中 \(P_s\) 是第 \(s\) 个卫星的功率预算。这时需要引入多个拉格朗日乘子 \(\mu_s\)（每个卫星一个），并相应修改波束成形更新步骤。
+
+---
+
+### **修改后的优化问题**
+
+在WMMSE算法中，目标是最小化加权均方误差，同时满足功率约束。修改后的优化问题可以表示为：
+\[
+\min_{\{\mathbf{w}_u\}} \sum_{u=1}^{U} \lambda_u \mathbb{E}[|g_u y_u - s_u|^2], \quad \text{s.t.} \quad \sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s, \quad \forall s = 1, 2, \dots, S
+\]
+其中：
+- \(y_u = \mathbf{h}_u^H \mathbf{w}_u + n_u\) 是用户 \(u\) 的接收信号（\(n_u\) 为噪声），
+- \(s_u\) 是用户 \(u\) 的发送符号。
+
+为了处理每个卫星的独立功率约束，我们引入拉格朗日乘子 \(\mu_s \geq 0\)（\(s = 1, 2, \dots, S\)），构造拉格朗日函数：
+\[
+\mathcal{L} = \sum_{u=1}^{U} \lambda_u \mathbb{E}[|g_u y_u - s_u|^2] + \sum_{s=1}^{S} \mu_s \left( \sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 - P_s \right)
+\]
+
+---
+
+### **波束成形更新推导**
+
+在WMMSE算法中，波束成形向量 \(\mathbf{w}_u\) 的更新通过对拉格朗日函数 \(\mathcal{L}\) 关于 \(\mathbf{w}_u\) 求偏导并令其等于零得到，即：
+\[
+\frac{\partial \mathcal{L}}{\partial \mathbf{w}_u} = 0
+\]
+
+#### **1. 计算MSE项的导数**
+
+MSE项为：
+\[
+\sum_{u=1}^{U} \lambda_u \mathbb{E}[|g_u y_u - s_u|^2]
+\]
+其关于 \(\mathbf{w}_u\) 的导数为：
+\[
+\frac{\partial}{\partial \mathbf{w}_u} \sum_{u'=1}^{U} \lambda_{u'} \mathbb{E}[|g_{u'} y_{u'} - s_{u'}|^2] = \left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H \right) \mathbf{w}_u - \lambda_u g_u^* \mathbf{h}_u
+\]
+
+#### **2. 计算功率约束项的导数**
+
+功率约束项为：
+\[
+\sum_{s=1}^{S} \mu_s \left( \sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 - P_s \right)
+\]
+由于 \(\mathbf{w}_u = [\mathbf{w}_{1,u}^T, \mathbf{w}_{2,u}^T, \dots, \mathbf{w}_{S,u}^T]^T\)，\(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2\) 只涉及第 \(s\) 个卫星的部分。对 \(\mathbf{w}_u\) 求导时，考虑所有卫星的约束项，导数为：
+\[
+\frac{\partial}{\partial \mathbf{w}_u} \sum_{s=1}^{S} \mu_s \sum_{u'=1}^{U} \|\mathbf{w}_{s,u'}\|^2 = \mathbf{D} \mathbf{w}_u
+\]
+其中 \(\mathbf{D}\) 是一个对角矩阵，定义为：
+\[
+\mathbf{D} = \text{diag}(\mu_1 \mathbf{I}_N, \mu_2 \mathbf{I}_N, \dots, \mu_S \mathbf{I}_N) \in \mathbb{C}^{SN \times SN}
+\]
+这里，\(\mathbf{I}_N\) 是 \(N \times N\) 的单位矩阵，\(\mu_s \mathbf{I}_N\) 应用于第 \(s\) 个卫星的波束成形向量部分。
+
+#### **3. 合并导数并求解**
+
+将两部分导数相加并令其等于零：
+\[
+\left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H + \mathbf{D} \right) \mathbf{w}_u - \lambda_u g_u^* \mathbf{h}_u = 0
+\]
+解得：
+\[
+\mathbf{w}_u = \left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H + \mathbf{D} \right)^{-1} \lambda_u g_u^* \mathbf{h}_u
+\]
+代入 \(\mathbf{D}\) 的表达式，最终的波束成形更新公式为：
+\[
+\mathbf{w}_u = \left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H + \text{diag}(\mu_1 \mathbf{I}_N, \mu_2 \mathbf{I}_N, \dots, \mu_S \mathbf{I}_N) \right)^{-1} \lambda_u g_u^* \mathbf{h}_u
+\]
+
+---
+
+### **拉格朗日乘子 \(\mu_s\) 的确定**
+
+每个 \(\mu_s\) 需要调整以满足对应的功率约束 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s\)。具体方法如下：
+- **初始化**：为每个卫星 \(s\) 设置初始 \(\mu_s\)（例如 \(\mu_s = 0\)）。
+- **迭代调整**：
+  - 计算当前 \(\mathbf{w}_u\) 并检查每个卫星的功率 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2\)：
+    - 如果 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 > P_s\)，增加 \(\mu_s\)；
+    - 如果 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 < P_s\) 且 \(\mu_s > 0\)，减小 \(\mu_s\)；
+    - 如果 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s\) 且 \(\mu_s = 0\)，保持不变。
+- **收敛条件**：当所有卫星的功率约束满足时（即 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 = P_s\) 或 \(\mu_s = 0\) 且 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s\)），停止调整。
+
+在实践中，可以通过二分搜索为每个 \(\mu_s\) 找到合适的值。
+
+---
+
+### **最终结果**
+
+当功率约束从总功率限制改为每个卫星独立功率限制时，WMMSE算法中的波束成形更新步骤修改为：
+\[
+\mathbf{w}_u = \left( \sum_{u'=1}^{U} \lambda_{u'} |g_{u'}|^2 \mathbf{h}_{u'} \mathbf{h}_{u'}^H + \text{diag}(\mu_1 \mathbf{I}_N, \mu_2 \mathbf{I}_N, \dots, \mu_S \mathbf{I}_N) \right)^{-1} \lambda_u g_u^* \mathbf{h}_u
+\]
+其中：
+- \(\mathbf{D} = \text{diag}(\mu_1 \mathbf{I}_N, \mu_2 \mathbf{I}_N, \dots, \mu_S \mathbf{I}_N)\) 是一个分块对角矩阵，\(\mu_s\) 是第 \(s\) 个卫星的拉格朗日乘子，
+- 每个 \(\mu_s \geq 0\) 通过独立调整以满足 \(\sum_{u=1}^{U} \|\mathbf{w}_{s,u}\|^2 \leq P_s\)。
+
+这种修改确保了每个卫星的波束成形向量在其独立功率约束下进行优化，与原始总功率约束下的单一 \(\mu\) 不同。

@@ -79,12 +79,13 @@ class RISSatUAVCom:
 
         self.theta = np.zeros(self.S)
         self.pSAT = np.zeros((self.S, 3))
+        self.dUAV = 50  # 无人机编队之间的水平距离，单位：米
         self.pUAV_initial = np.array([
-            [0,-5e3, self.RE + self.hTR], 
-            [0, 50-5e3, self.RE + self.hTR], 
-            [50, 50-5e3, self.RE + self.hTR]
+            [0, -5e3, self.RE + self.hTR], 
+            [0, -5e3+self.dUAV, self.RE + self.hTR], 
+            [self.dUAV, -5e3+self.dUAV, self.RE + self.hTR]
             ])
-        self.pRIS_initial = np.array([50, -5e3, self.RE + self.hRIS])
+        self.pRIS_initial = np.array([self.dUAV, -5e3, self.RE + self.hRIS])
         self.v_formation = np.array([0, 20, 0])  # 编队速度，单位：m/s，沿 y 轴
         
 

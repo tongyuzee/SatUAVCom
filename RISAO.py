@@ -342,4 +342,4 @@ if __name__ == "__main__":
     # main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
     M1_range = range(0, 800, 50)
-    analyze_M_impact(time=260,  M1_range = range(0, 100, 10))
+    analyze_M_impact(time=260,  M1_range = [0, 4, 8, 16, 24, 32, 48, 64, 72, 96])
