@@ -50,7 +50,7 @@ class RISSatUAVCom:
         self.M2 = np.sqrt(self.M)
 
         self.c = 3e8  # 光速，单位：米/秒
-        self.f_c = 20e9  # 载波频率，单位：赫兹
+        self.f_c = 12e9  # 载波频率，单位：赫兹
         self.wavelength = self.c / self.f_c  # 计算波长
 
         self.G_S = G_S  # 卫星发射天线增益，单位：dBi
@@ -63,7 +63,7 @@ class RISSatUAVCom:
         self.g_Ru = np.zeros((self.U, self.M), dtype=complex) # RIS到UAV信道
 
         self.RE = 6371E3  # 地球半径，单位：米
-        self.h = 600e3  # 卫星高度，单位：米
+        self.h = 500e3  # 卫星高度，单位：米
         self.D = self.h + self.RE  # 卫星轨道半径，单位：米
         self.v = np.sqrt(3.986e14/self.D)  # 卫星的速度，单位：米/秒
         self.w = self.v / self.D  # 卫星的角速度，单位：弧度/秒
@@ -79,13 +79,13 @@ class RISSatUAVCom:
 
         self.theta = np.zeros(self.S)
         self.pSAT = np.zeros((self.S, 3))
-        self.dUAV = 50  # 无人机编队之间的水平距离，单位：米
+        self.dUAV = 40  # 无人机编队之间的水平距离，单位：米
         self.pUAV_initial = np.array([
-            [0, -5e3, self.RE + self.hTR], 
-            [0, -5e3+self.dUAV, self.RE + self.hTR], 
-            [self.dUAV, -5e3+self.dUAV, self.RE + self.hTR]
+            [0, -self.dUAV, self.RE + self.hTR], 
+            [self.dUAV, 0, self.RE + self.hTR], 
+            [0, self.dUAV, self.RE + self.hTR]
             ])
-        self.pRIS_initial = np.array([self.dUAV, -5e3, self.RE + self.hRIS])
+        self.pRIS_initial = np.array([-30, 0, self.RE + self.hRIS])
         self.v_formation = np.array([0, 20, 0])  # 编队速度，单位：m/s，沿 y 轴
         
 

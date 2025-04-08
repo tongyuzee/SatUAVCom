@@ -207,16 +207,25 @@ class FindW_WMMSE:
             W_s = W_opt[s*self.N : (s+1)*self.N, :]
             constraints.append(cp.sum_squares(W_s) <= self.P_s / self.S)
         
+        # 配置求解器参数
+        solver_args = {
+            # 'eps_abs': 1e-4,    # 绝对误差容忍度
+            # 'eps_rel': 1e-4,    # 相对误差容忍度
+            # 'max_iters': 5000, # 最大迭代次数
+            'verbose': False,
+            # 'use_indirect': True  # 对于大规模问题更高效
+        }
+
         # 求解问题
         problem = cp.Problem(cp.Minimize(objective), constraints)
-        problem.solve(solver=cp.SCS, verbose=False)
+        problem.solve(solver=cp.SCS, **solver_args)
         
         if W_opt.value is None:
             raise ValueError("CVXPY failed to find a solution.")
         
         return W_opt.value
     
-    def optimize(self, max_iter=200, tol=1e-4):
+    def optimize(self, max_iter=400, tol=1e-4):
         """执行WMMSE算法的迭代优化"""
         rate = []
         R_pre = self.compute_sum_rate()

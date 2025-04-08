@@ -6,58 +6,84 @@ import os
 plt.rcParams['font.family'] = 'Times New Roman'
 plt.rcParams['font.size'] = 14
 plt.rcParams['figure.autolayout'] = True
+plt.rcParams['axes.titlesize'] = 14
 
-def compare_rates(file1='data/Rate_list1.npy', file2='data/Rate_list2.npy', 
-                  label1='Algorithm 1', label2='Algorithm 2', 
-                  time_interval=10, max_time=None):
+def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, styles=None, markers=None):
     """
-    读取并比较两个速率数据文件
+    读取并比较多个速率数据文件
     
     参数:
-        file1, file2: 要比较的数据文件路径
-        label1, label2: 图例标签
+        *args: 交替的文件路径和标签，如 file1, label1, file2, label2, ...
         time_interval: 时间采样间隔
         max_time: 最大显示时间 (可选)
+        output_name: 输出文件名前缀
+        colors: 线条颜色列表
+        styles: 线条样式列表
     """
-    # 检查文件是否存在
-    if not os.path.exists(file1):
-        raise FileNotFoundError(f"文件不存在: {file1}")
-    if not os.path.exists(file2):
-        raise FileNotFoundError(f"文件不存在: {file2}")
+    # 处理参数
+    files = args[::2]  # 偶数位置是文件路径
+    labels = args[1::2]  # 奇数位置是标签
     
-    # 读取数据
-    rate_list1 = np.load(file1)
-    rate_list2 = np.load(file2)
+    # 默认颜色和样式
+    if colors is None:
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
+    if styles is None:
+        styles = ['-', '--', '-.', ':', '-', '--', '-.', ':']
+    if markers is None:
+        markers = ['o', 's', '^', 'D', 'x', '+', '*', 'P']
     
-    # 生成时间列表
-    T_list1 = np.arange(0, len(rate_list1) * time_interval, time_interval)
-    T_list2 = np.arange(0, len(rate_list2) * time_interval, time_interval)
-    
-    # 如果指定了最大时间，进行截断
-    if max_time:
-        idx1 = np.where(T_list1 <= max_time)[0]
-        idx2 = np.where(T_list2 <= max_time)[0]
-        T_list1 = T_list1[idx1]
-        T_list2 = T_list2[idx2]
-        rate_list1 = rate_list1[idx1]
-        rate_list2 = rate_list2[idx2]
+    # 确保颜色和样式足够
+    while len(colors) < len(files):
+        colors.extend(colors)
+    while len(styles) < len(files):
+        styles.extend(styles)
     
     # 创建图形
     plt.figure(figsize=(8, 6))
     
-    # 绘制两条曲线
-    plt.plot(T_list1, rate_list1, 'b-', linewidth=2, label=label1)
-    plt.plot(T_list2, rate_list2, 'g--', linewidth=2, label=label2)
+    # 加载数据并绘图
+    all_rates = []
+    max_rate = 0
+    min_rate = float('inf')
+    
+    for i, (file_path, label) in enumerate(zip(files, labels)):
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"文件不存在: {file_path}")
+        
+        # 读取数据
+        rate_list = np.load(file_path)
+        all_rates.append(rate_list)
+        
+        # 记录最大最小值用于调整y轴
+        max_rate = max(max_rate, np.max(rate_list))
+        min_rate = min(min_rate, np.min(rate_list))
+        
+        # 生成时间列表
+        T_list = np.arange(0, len(rate_list) * time_interval, time_interval)
+        
+        # 如果指定了最大时间，进行截断
+        if max_time:
+            idx = np.where(T_list <= max_time)[0]
+            T_list = T_list[idx]
+            rate_list = rate_list[idx]
+        
+        # 绘制曲线
+        plt.plot(T_list, rate_list, 
+                 color=colors[i], linestyle=styles[i], linewidth=2, 
+                 marker=markers[i], markeredgecolor=colors[i], markersize=6,  markeredgewidth=2,
+                 label=label
+                 )
     
     # 添加标签和图例
     plt.xlabel('Service Time (s)', fontsize=14)
     plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
-    plt.grid(True)
-    plt.legend(loc='upper right')
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc='best')
     
-    # 设置坐标轴刻度字体大小
-    plt.xticks()
-    plt.yticks()
+    # 优化Y轴范围，留出一点边距
+    padding = (max_rate - min_rate) * 0.05
+    plt.ylim([min_rate - padding, max_rate + padding])
     
     # 创建 fig 目录（如果不存在）
     if not os.path.exists('fig'):
@@ -65,22 +91,35 @@ def compare_rates(file1='data/Rate_list1.npy', file2='data/Rate_list2.npy',
     
     # 保存图片
     plt.tight_layout()
-    plt.savefig('fig/rate_comparison.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig('fig/rate_comparison.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/{output_name}.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/{output_name}.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/{output_name}.png', dpi=300, bbox_inches='tight')
     
     # 显示图片
     plt.show()
     
     # 输出一些基本统计信息
-    print(f"{label1} 平均速率: {np.mean(rate_list1):.4f} bps/Hz")
-    print(f"{label2} 平均速率: {np.mean(rate_list2):.4f} bps/Hz")
-    print(f"速率提升: {(np.mean(rate_list1) - np.mean(rate_list2))/np.mean(rate_list2)*100:.2f}%")
+    print("\n统计信息:")
+    for i, (label, rate) in enumerate(zip(labels, all_rates)):
+        print(f"{label} 平均速率: {np.mean(rate):.4f} bps/Hz")
+    
+    # # 计算性能提升
+    # if len(all_rates) > 1:
+    #     print("\n性能提升:")
+    #     base_rate = np.mean(all_rates[0])
+    #     for i, (label, rate) in enumerate(zip(labels[1:], all_rates[1:]), 1):
+    #         diff = np.mean(rate) - base_rate
+    #         percent = (diff / base_rate) * 100
+    #         print(f"{labels[0]} vs {label}: {diff:.4f} bps/Hz ({percent:.2f}%)")
 
 if __name__ == "__main__":
     compare_rates(
-        file1='data/Rate_list1.npy', 
-        file2='data/Rate_list2.npy',
-        label1='Total power constaint', 
-        label2='PerSat power constraint',
-        time_interval=10
+        'data/Whole_Service_S2_U3_N4_M6400.npy', 'RIS with 6400 elements',
+        'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with 6400 random-phase elements',
+        'data/Whole_Service_S2_U3_N4_M0.npy', 'RIS without elements',
+        time_interval=15,
+        output_name="RIS_comparison",
+        colors=['#1d73b6', '#24a645', '#f27830'],
+        styles=['-', '--', '--'],
+        markers=['o', 'o', '+' ]
     )

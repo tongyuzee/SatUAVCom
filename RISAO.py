@@ -43,19 +43,25 @@ class RISAlternatingOptimization:
         """计算等效信道矩阵 H"""
         Phi = np.diag(np.exp(1j * self.theta))  # RIS相位矩阵，size: M x M
         H = np.zeros((self.S * self.N, self.U), dtype=complex)
+        h_tilde = np.zeros((self.U, self.S, self.N), dtype=complex)
         for u in range(self.U):
             for s in range(self.S):
-                h_tilde = self.h_su[u, s, :].T + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
-                H[s * self.N:(s + 1) * self.N, u] = h_tilde
-        return H
+                h_tilde[u, s, :] = self.h_su[u, s, :].T + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
+                H[s * self.N:(s + 1) * self.N, u] =  h_tilde[u, s, :]
+        return H, h_tilde
 
-    def initialize_W(self, H):
+    def initialize_W(self, H, H_tilde):
         """基于MRT初始化预编码矩阵 W"""
         W = np.zeros((self.S * self.N, self.U), dtype=complex)
-        for i in range(self.U):
-            h_i = H[:, i]  # 第 i 个用户的信道向量
-            w_i = h_i / np.linalg.norm(h_i, 2)  # 归一化
-            W[:, i] = w_i * np.sqrt(self.P_s / self.U)  # 分配功率
+        W_su = np.zeros((self.U, self.S, self.N), dtype=complex)
+        for u in range(self.U):
+            for s in range(self.S):
+                W_su[u, s, :] = H_tilde[u, s, :].T / np.linalg.norm(H_tilde[u, s, :], 2)  # 归一化
+                W[s * self.N:(s + 1) * self.N, u] = W_su[u, s, :] * np.sqrt(self.P_s / self.U)  # 分配功率
+        # for i in range(self.U):
+        #     h_i = H[:, i]  # 第 i 个用户的信道向量
+        #     w_i = h_i / np.linalg.norm(h_i, 2)  # 归一化
+        #     W[:, i] = w_i * np.sqrt(self.P_s / self.U)  # 分配功率
         return W
 
     def optimize_W(self, H, W_init):
@@ -102,11 +108,11 @@ class RISAlternatingOptimization:
         R_sum = np.sum(np.log2(1 + SINR))
         return sigout, SINR, R_sum
 
-    def run_optimization(self, max_iter=1000, tol=1e-3):
+    def run_optimization(self, max_iter=1000, tol=1e-3, RandomPhi=False):
         """执行联合优化过程"""
         for iter in range(max_iter):
-            H = self.compute_equivalent_channel()
-            W = self.initialize_W(H) if iter == 0 else W_opt
+            H, H_tilde = self.compute_equivalent_channel()
+            W = self.initialize_W(H, H_tilde) if iter == 0 else W_opt
             W_opt, rate_w = self.optimize_W(H, W)
             # self.W_su = np.zeros((self.U, self.S, self.N), dtype=complex)
             for u in range(self.U):
@@ -114,7 +120,7 @@ class RISAlternatingOptimization:
                     self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
             sigout, _, R_w = self.compute_Sinr_Rsum(self.W_su)
             self.Rate.append(R_w)
-            if self.M > 0:
+            if self.M > 0 and RandomPhi == False:  # 如果有RIS元素，则优化相位
                 theta, rate_phi = self.optimize_theta(self.W_su, R_w)  # R_init=0，与原代码一致
                 self.theta = theta
                 sigout, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
@@ -123,6 +129,7 @@ class RISAlternatingOptimization:
                 if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 and abs(self.Rate[-2] - self.Rate[-3]) < 1e-3:
                     break
             else: # 如果没有RIS元素，则只优化W
+                # self.theta = np.random.uniform(0, 2 * np.pi, self.M)  # 随机初始化RIS相位
                 print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}')
                 if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 :
                     break
@@ -192,15 +199,23 @@ def main_service():
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    M = 16  # RIS单元数量
-    P_s = 1  # 发射功率
-    sigma2 = 1e-16  # 噪声方差
-    gain_factor = 1e8  # 增益因子
+    M = 6400  # RIS单元数量
+    Rphi = True  # 随机初始化相位
+    P_s = 1  # 发射功率 波束形成向量的约束
+    PowerdB = 70  # 发射功率(dBm)
+    Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
+    A = np.sqrt(Power)  # 幅度增益
+    # sigma2 = 1e-16  # 噪声方差
+    gain_factor = 1e4  # 增益因子
 
+    N0 = -85  # dBm/Hz
+    # B = 20e6 # 20MHz
+    B = 1
+    N0 = 10 ** (N0 / 10) / 1000 * B  # 噪声功率转换为瓦特
 
     sigo = []
     Rate_list = []
-    T_list = range(0, 1000, 10)
+    T_list = range(0, 1000, 15)
     for t in T_list:
         print(f'当前时间：{t}')
 
@@ -218,14 +233,14 @@ def main_service():
         g_Ru = np.conj(g_Ru)
 
         # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
-        h_su = h_su * gain_factor
-        H_sR = H_sR * gain_factor
-        sigma2 = 1e-16  # 噪声方差
-        sigma2 = sigma2 * gain_factor ** 2
+        h_su = h_su * A * gain_factor 
+        H_sR = H_sR * A * gain_factor
+        sigma2 = N0 * gain_factor ** 2
+        # sigma2 = 0.1  # 噪声方差
 
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, Rate, _, _ = system.run_optimization()
+        sigout, Rate, _, _ = system.run_optimization(RandomPhi=Rphi)  # 随机初始化相位
         # system.plot_results()
         # sigout, Rate, _, _ = run(t, U, S, N, M, P_s, gain_factor)
         sigo.append(sigout)
@@ -236,7 +251,7 @@ def main_service():
     if not os.path.exists('data'):
             os.makedirs('data')
     # 保存 Rate_list 数据
-    np.save('data/Rate_list2.npy', np.array(Rate_list))
+    np.save(f'data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.npy', np.array(Rate_list))
 
     plt.figure(figsize=(8, 6))
     plt.plot(T_list[0:len(Rate_list)], Rate_list)
@@ -245,8 +260,9 @@ def main_service():
     plt.grid(True)
     if not os.path.exists('fig'):
             os.makedirs('fig')
-    plt.savefig('fig/Whole_Service.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig('fig/Whole_Service.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -266,10 +282,17 @@ def analyze_M_impact(time=200, M1_range=None):
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    P_s = 1  # 发射功率
-    sigma2 = 1e-16  # 噪声方差
-    gain_factor = 1e8  # 增益因子
-    
+    P_s = 1  # 发射功率 波束形成向量的约束
+    PowerdB = 70  # 发射功率(dBm)
+    Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
+    A = np.sqrt(Power)  # 幅度增益
+    # sigma2 = 1e-16  # 噪声方差
+    gain_factor = 1e4  # 增益因子
+    N0 = -85  # dBm/Hz
+    # B = 20e6 # 20MHz
+    B = 1
+    N0 = 10 ** (N0 / 10) / 1000 * B  # 噪声功率转换为瓦特
+
     sigoot_vs_M = []
     rate_vs_M = []
     print(f"分析时刻 t={time} 下和速率随RIS元素数量的变化关系")
@@ -288,12 +311,13 @@ def analyze_M_impact(time=200, M1_range=None):
         g_Ru = np.conj(g_Ru)
         
         # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变
-        h_su = h_su * gain_factor
-        H_sR = H_sR * gain_factor
-        sigma2_scaled = 1e-16 * gain_factor ** 2
+        h_su = h_su * A * gain_factor 
+        H_sR = H_sR * A * gain_factor
+        sigma2 = N0 * gain_factor ** 2
+        # sigma2_scaled = 0.1  # 噪声方差
         
         # 实例化并运行优化
-        system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2_scaled, h_su, H_sR, g_Ru)
+        system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
         sigout, rate, _, _ = system.run_optimization()
         # system.plot_results()
         rate_vs_M.append(rate)
@@ -307,7 +331,7 @@ def analyze_M_impact(time=200, M1_range=None):
     
     # 绘制结果
     plt.figure(figsize=(8, 6))
-    plt.plot(M1_range, rate_vs_M, 'o-', linewidth=2, markersize=10)
+    plt.plot(M1_range, rate_vs_M, 'o-', linewidth=2, markersize=6)
     plt.xlabel('Number of RIS Elements (M)')
     plt.ylabel('Sum Rate (bps/Hz)')
     plt.grid(True)
@@ -339,7 +363,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    # main_service()
+    main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
-    M1_range = range(0, 800, 50)
-    analyze_M_impact(time=260,  M1_range = [0, 4, 8, 16, 24, 32, 48, 64, 72, 96])
+    # M1_range = range(0, 800, 50)
+    # analyze_M_impact(time=260,  M1_range = [0, 4, 8, 16, 24, 32, 48, 64, 72, 96])
