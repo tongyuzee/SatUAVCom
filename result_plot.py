@@ -37,9 +37,12 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
         colors.extend(colors)
     while len(styles) < len(files):
         styles.extend(styles)
-    
+
+    cm_to_inch = 1/2.54
+    fig_width_cm = 15  # 宽度，厘米
+    fig_height_cm = 12  # 高度，厘米
     # 创建图形
-    plt.figure(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
     
     # 加载数据并绘图
     all_rates = []
@@ -79,8 +82,21 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
     plt.xlabel('Service Time (s)', fontsize=14)
     plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
     plt.grid(True, alpha=0.3)
-    plt.legend(loc='best')
+    plt.legend(loc='lower center')
     
+    # 设置框和刻度线 - 类似Matlab的box on
+    ax.spines['top'].set_visible(True)
+    ax.spines['right'].set_visible(True)
+    
+    # 设置刻度线朝内并出现在所有四个边上
+    ax.tick_params(axis='both', which='both', direction='in', 
+               top=True, bottom=True, left=True, right=True)
+    
+    # 还可以设置次刻度线
+    from matplotlib.ticker import AutoMinorLocator
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+
     # 优化Y轴范围，留出一点边距
     padding = (max_rate - min_rate) * 0.05
     plt.ylim([min_rate - padding, max_rate + padding])
@@ -114,16 +130,16 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
 
 if __name__ == "__main__":
     compare_rates(
-        # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with 6400 optimised-phase elements',
-        # 'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with 6400 random-phase elements',
-        # 'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
-        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'Ris-ssisted dual-SAT',
-        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'Ris-ssisted SAT1',
-        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'Ris-ssisted SAT2',
+        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with optimised-phase elements',
+        'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with random-phase elements',
+        'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
+        output_name="RIS_comparison",
+        # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-ssisted dual-SAT',
+        # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-ssisted SAT1',
+        # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-ssisted SAT2',
+        # output_name="SAT_comparison",
         time_interval=15,
-        # output_name="RIS_comparison",
-        output_name="SAT_comparison",
         colors=['#1d73b6', '#24a645', '#f27830'],
         styles=['-', '--', '--'],
-        markers=['o', 'o', 'o' ]
+        markers=['o', 'o', '+' ]
     )

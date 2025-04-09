@@ -45,13 +45,16 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
         T_list2 = T_list2[idx2]
         rate_list1 = rate_list1[idx1]
         rate_list2 = rate_list2[idx2]
-    
+
+    cm_to_inch = 1/2.54
+    fig_width_cm = 16  # 宽度，厘米
+    fig_height_cm = 12  # 高度，厘米
     # 创建双轴图形
-    fig, ax1 = plt.subplots(figsize=(8, 6))
+    fig, ax1 = plt.subplots(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
     
     # 第一条曲线 (左轴)
     ax1.set_xlabel('Service Time (s)', fontsize=14)
-    ax1.set_ylabel(f'{label1}', color=color1, fontsize=14)
+    ax1.set_ylabel(f'{label1} Sum Rate (bps/Hz)', color=color1, fontsize=14)
     line1 = ax1.plot(T_list1, rate_list1, color=color1, linestyle=style1, linewidth=2,
                      marker=marker1, markersize=6, markeredgewidth=2,
                      label=label1)
@@ -59,9 +62,9 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
     
     # 第二条曲线 (右轴)
     ax2 = ax1.twinx()
-    ax2.set_ylabel(f'{label2}', color=color2, fontsize=14)
+    ax2.set_ylabel(f'{label2} Sum Rate (bps/Hz)', color=color2, fontsize=14)
     line2 = ax2.plot(T_list2, rate_list2, color=color2, linestyle=style2, linewidth=2,
-                     marker=marker2, markersize=6, markeredgewidth=2,
+                     marker=marker2, markersize=6, markeredgewidth=2, markerfacecolor='none',
                      label=label2)
     ax2.tick_params(axis='y', labelcolor=color2)
     
@@ -72,6 +75,19 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
     
     # 添加网格线 (仅适用于左轴)
     ax1.grid(True, alpha=0.3)
+
+    # 设置框和刻度线 - 类似Matlab的box on
+    ax1.spines['top'].set_visible(True)
+    ax1.spines['right'].set_visible(True)
+    
+    # 设置刻度线朝内并出现在所有四个边上
+    ax1.tick_params(axis='both', which='both', direction='in', 
+               top=True, bottom=True, left=True, right=True)
+    
+    # 还可以设置次刻度线
+    from matplotlib.ticker import AutoMinorLocator
+    ax1.xaxis.set_minor_locator(AutoMinorLocator())
+    ax1.yaxis.set_minor_locator(AutoMinorLocator())
     
     # # 优化两个Y轴的范围，使曲线在视觉上大致匹配
     # ax1_range = max(rate_list1) - min(rate_list1)
@@ -108,10 +124,10 @@ if __name__ == "__main__":
         'data/Whole_Service_S2_U3_N4_M6400_Random0_MRC1.npy', 'MRC',
         time_interval=15,
         output_name="WMMSE_MRC_Comparison",
-        color1='#1d73b6',  # 蓝色
+        color1='#1d73b6ff',  # 蓝色
         color2='#24a645',  # 绿色
         style1='-', 
-        style2='-',
+        style2='--',
         marker1='o', 
         marker2='o',
         ylim1=[6.5, 12.5],  # 左侧y轴范围
