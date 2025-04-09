@@ -57,7 +57,7 @@ class RISAlternatingOptimization:
         for u in range(self.U):
             for s in range(self.S):
                 W_su[u, s, :] = H_tilde[u, s, :].T / np.linalg.norm(H_tilde[u, s, :], 2)  # 归一化
-                W[s * self.N:(s + 1) * self.N, u] = W_su[u, s, :] * np.sqrt(self.P_s / self.U)  # 分配功率
+                W[s * self.N:(s + 1) * self.N, u] = W_su[u, s, :] * np.sqrt(self.P_s / self.S / self.U)  # 分配功率
         # for i in range(self.U):
         #     h_i = H[:, i]  # 第 i 个用户的信道向量
         #     w_i = h_i / np.linalg.norm(h_i, 2)  # 归一化
@@ -108,13 +108,15 @@ class RISAlternatingOptimization:
         R_sum = np.sum(np.log2(1 + SINR))
         return sigout, SINR, R_sum
 
-    def run_optimization(self, max_iter=1000, tol=1e-3, RandomPhi=False):
+    def run_optimization(self, max_iter=1000, tol=1e-3, RandomPhi=False, MRCw=False):
         """执行联合优化过程"""
         for iter in range(max_iter):
             H, H_tilde = self.compute_equivalent_channel()
-            W = self.initialize_W(H, H_tilde) if iter == 0 else W_opt
-            W_opt, rate_w = self.optimize_W(H, W)
-            # self.W_su = np.zeros((self.U, self.S, self.N), dtype=complex)
+            if MRCw:  # 如果使用MRC预编码
+                W_opt = self.initialize_W(H, H_tilde)
+            else:
+                W = self.initialize_W(H, H_tilde) if iter == 0 else W_opt
+                W_opt, rate_w = self.optimize_W(H, W)
             for u in range(self.U):
                 for s in range(self.S):
                     self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
@@ -125,7 +127,10 @@ class RISAlternatingOptimization:
                 self.theta = theta
                 sigout, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
                 self.Rate.append(R_phi)
-                print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
+                if MRCw:
+                    print(f'迭代次数: {iter:03d}, FindW: MRCw, rate_w={R_w:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
+                else:
+                    print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
                 if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 and abs(self.Rate[-2] - self.Rate[-3]) < 1e-3:
                     break
             else: # 如果没有RIS元素，则只优化W
@@ -199,8 +204,9 @@ def main_service():
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    M = 0  # RIS单元数量
+    M = 6400  # RIS单元数量
     Rphi = False  # 随机初始化相位
+    MRCw = False  # 是否使用MRC预编码
     P_s = 1  # 发射功率 波束形成向量的约束
     PowerdB = 70  # 发射功率(dBm)
     Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
@@ -243,7 +249,7 @@ def main_service():
 
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, Rate, _, _ = system.run_optimization(RandomPhi=Rphi)  # 随机初始化相位
+        sigout, Rate, _, _ = system.run_optimization(RandomPhi=Rphi, MRCw=MRCw)  # 随机初始化相位
         # system.plot_results()
         # sigout, Rate, _, _ = run(t, U, S, N, M, P_s, gain_factor)
         sigo.append(sigout)
@@ -252,7 +258,7 @@ def main_service():
     if not os.path.exists('data'):
             os.makedirs('data')
     # 保存 Rate_list 数据
-    np.save(f'data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.npy', np.array(Rate_list))
+    np.save(f'data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.npy', np.array(Rate_list))
 
     plt.figure(figsize=(8, 6))
     plt.plot(T_list[0:len(Rate_list)], Rate_list)
@@ -261,9 +267,9 @@ def main_service():
     plt.grid(True)
     if not os.path.exists('fig'):
             os.makedirs('fig')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.svg', format='svg', bbox_inches='tight')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 

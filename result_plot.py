@@ -114,12 +114,16 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
 
 if __name__ == "__main__":
     compare_rates(
-        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with 6400 elements',
-        'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with 6400 random-phase elements',
-        'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
+        # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with 6400 optimised-phase elements',
+        # 'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with 6400 random-phase elements',
+        # 'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
+        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'Ris-ssisted dual-SAT',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'Ris-ssisted SAT1',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'Ris-ssisted SAT2',
         time_interval=15,
-        output_name="RIS_comparison",
+        # output_name="RIS_comparison",
+        output_name="SAT_comparison",
         colors=['#1d73b6', '#24a645', '#f27830'],
         styles=['-', '--', '--'],
-        markers=['o', 'o', '+' ]
+        markers=['o', 'o', 'o' ]
     )

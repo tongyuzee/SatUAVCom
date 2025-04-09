@@ -99,7 +99,7 @@ class RISSatUAVCom:
 
     def current_position(self):
         """计算卫星的位置"""
-        self.theta = np.arange(self.S)*self.alpha + self.theta0 + self.w * self.current_t
+        self.theta = np.arange(self.S)*self.alpha + self.theta0 + self.w * self.current_t # + self.alpha
         self.pSAT = np.array([[0, self.D * np.cos(x), self.D * np.sin(x)] for x in self.theta])
         # 更新 UAV 和 RIS 的位置
         self.pUAV = self.pUAV_initial + self.v_formation * self.current_t  # 广播到 (U, 3)
