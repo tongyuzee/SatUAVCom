@@ -67,23 +67,24 @@ class RISSatUAVCom:
         self.D = self.h + self.RE  # 卫星轨道半径，单位：米
         self.v = np.sqrt(3.986e14/self.D)  # 卫星的速度，单位：米/秒
         self.w = self.v / self.D  # 卫星的角速度，单位：弧度/秒
-        self.theta0 = 70 * np.pi / 180  # 卫星初始位置，单位：弧度
-        self.alpha = 5 * np.pi / 180  # 卫星的角度间隔，单位：弧度
-
-        self.TT = np.round((np.pi - self.theta0 - self.theta0 - self.alpha) / self.w)  # 卫星飞行时间，单位：秒n
 
         self.l = 10  # RIS与TR之间的水平距离，单位：米
-        self.hTR = 100  # TR高度，单位：米
+        self.hUAV = 100  # TR高度，单位：米
         self.hRIS = 110  # RIS高度，单位：米
         self.delta = self.wavelength / 10  # RIS的元素间距，单位：米
 
+        self.elevation = 10 * np.pi / 180  # 卫星的俯仰角，单位：弧度
+        self.theta0 = self.elevation + np.arcsin((self.RE + self.hUAV) * np.sin(np.pi / 2 + self.elevation) / self.D)  # 卫星的俯仰角，单位：弧度
+        self.alpha = 5 * np.pi / 180  # 卫星的角度间隔，单位：弧度
+        self.TT = np.round((np.pi - self.theta0 - self.theta0 - self.alpha) / self.w)  # 卫星飞行时间，单位：秒n
+        
         self.theta = np.zeros(self.S)
         self.pSAT = np.zeros((self.S, 3))
         self.dUAV = 40  # 无人机编队之间的水平距离，单位：米
         self.pUAV_initial = np.array([
-            [0, -self.dUAV, self.RE + self.hTR], 
-            [self.dUAV, 0, self.RE + self.hTR], 
-            [0, self.dUAV, self.RE + self.hTR]
+            [0, -self.dUAV, self.RE + self.hUAV], 
+            [self.dUAV, 0, self.RE + self.hUAV], 
+            [0, self.dUAV, self.RE + self.hUAV]
             ])
         self.pRIS_initial = np.array([-30, 0, self.RE + self.hRIS])
         self.v_formation = np.array([0, 20, 0])  # 编队速度，单位：m/s，沿 y 轴

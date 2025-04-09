@@ -199,8 +199,8 @@ def main_service():
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    M = 6400  # RIS单元数量
-    Rphi = True  # 随机初始化相位
+    M = 0  # RIS单元数量
+    Rphi = False  # 随机初始化相位
     P_s = 1  # 发射功率 波束形成向量的约束
     PowerdB = 70  # 发射功率(dBm)
     Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
@@ -227,6 +227,9 @@ def main_service():
         Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
         h_su, H_sR, g_Ru= Sat_UAV_comm.setup_channel()
 
+        if t >= Sat_UAV_comm.TT:
+            break
+
         # 在通信系统中，信号功率通常是∣h^H w∣^2 
         h_su = np.conj(h_su)
         H_sR = np.conj(H_sR)
@@ -246,8 +249,6 @@ def main_service():
         sigo.append(sigout)
         Rate_list.append(Rate)
 
-        if t >= Sat_UAV_comm.TT:
-            break
     if not os.path.exists('data'):
             os.makedirs('data')
     # 保存 Rate_list 数据

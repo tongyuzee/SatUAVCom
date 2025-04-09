@@ -114,9 +114,9 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
 
 if __name__ == "__main__":
     compare_rates(
-        'data/Whole_Service_S2_U3_N4_M6400.npy', 'RIS with 6400 elements',
+        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with 6400 elements',
         'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with 6400 random-phase elements',
-        'data/Whole_Service_S2_U3_N4_M0.npy', 'RIS without elements',
+        'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
         time_interval=15,
         output_name="RIS_comparison",
         colors=['#1d73b6', '#24a645', '#f27830'],
