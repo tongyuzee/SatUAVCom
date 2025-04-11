@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import scienceplots
+plt.style.use(['science','ieee', 'no-latex'])
 
 # 设置全局字体为 Times New Roman
-plt.rcParams['font.family'] = 'Times New Roman'
-plt.rcParams['font.size'] = 14
-plt.rcParams['figure.autolayout'] = True
-plt.rcParams['axes.titlesize'] = 14
+# plt.rcParams['font.family'] = 'Times New Roman'
+# plt.rcParams['font.size'] = 14
+# plt.rcParams['figure.autolayout'] = True
+# plt.rcParams['axes.titlesize'] = 14
 
 def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, styles=None, markers=None):
     """
@@ -42,7 +44,7 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
     fig_width_cm = 15  # 宽度，厘米
     fig_height_cm = 12  # 高度，厘米
     # 创建图形
-    fig, ax = plt.subplots(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
+    fig, ax = plt.subplots()
     
     # 加载数据并绘图
     all_rates = []
@@ -79,23 +81,23 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
                  )
     
     # 添加标签和图例
-    plt.xlabel('Service Time (s)', fontsize=14)
-    plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
-    plt.grid(True, alpha=0.3)
+    plt.xlabel('Service Time (s)')
+    plt.ylabel('Sum Rate (bps/Hz)')
+    # plt.grid(True, alpha=0.3)
     plt.legend(loc='lower center')
     
-    # 设置框和刻度线 - 类似Matlab的box on
-    ax.spines['top'].set_visible(True)
-    ax.spines['right'].set_visible(True)
+    # # 设置框和刻度线 - 类似Matlab的box on
+    # ax.spines['top'].set_visible(True)
+    # ax.spines['right'].set_visible(True)
     
-    # 设置刻度线朝内并出现在所有四个边上
-    ax.tick_params(axis='both', which='both', direction='in', 
-               top=True, bottom=True, left=True, right=True)
+    # # 设置刻度线朝内并出现在所有四个边上
+    # ax.tick_params(axis='both', which='both', direction='in', 
+    #            top=True, bottom=True, left=True, right=True)
     
-    # 还可以设置次刻度线
-    from matplotlib.ticker import AutoMinorLocator
-    ax.xaxis.set_minor_locator(AutoMinorLocator())
-    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    # # 还可以设置次刻度线
+    # from matplotlib.ticker import AutoMinorLocator
+    # ax.xaxis.set_minor_locator(AutoMinorLocator())
+    # ax.yaxis.set_minor_locator(AutoMinorLocator())
 
     # 优化Y轴范围，留出一点边距
     padding = (max_rate - min_rate) * 0.05
@@ -106,13 +108,13 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
         os.makedirs('fig')
     
     # 保存图片
-    plt.tight_layout()
-    plt.savefig(f'fig/{output_name}.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/{output_name}.svg', format='svg', bbox_inches='tight')
-    plt.savefig(f'fig/{output_name}.png', dpi=300, bbox_inches='tight')
+    # plt.tight_layout()
+    plt.savefig(f'fig/{output_name}1.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/{output_name}1.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/{output_name}1.png', dpi=300, bbox_inches='tight')
     
     # 显示图片
-    plt.show()
+    # plt.show()
     
     # 输出一些基本统计信息
     print("\n统计信息:")
@@ -134,13 +136,12 @@ if __name__ == "__main__":
         'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with random-phase elements',
         'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
         output_name="RIS_comparison",
-        colors=['#1d73b6', '#24a645', '#f27830'],
         # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-ssisted dual-SAT',
         # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-ssisted SAT1',
         # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-ssisted SAT2',
         # output_name="SAT_comparison",
-        # colors=['#1d73b6', '#24a645', '#f27830'],
         time_interval=15,
+        colors=['#1d73b6', '#24a645', '#f27830'],
         styles=['-', '--', '--'],
         markers=['o', 'o', '+' ]
     )

@@ -68,6 +68,7 @@ class RISAlternatingOptimization:
         """使用WMMSE算法优化预编码矩阵 W"""
         Woptimization = FindW_WMMSE.FindW_WMMSE(self.S, self.U, self.N, self.M, H, W_init, self.P_s, self.sigma2)
         W_opt, rate_w = Woptimization.optimize()
+        # Woptimization.plot_rate(rate_w)
         return W_opt, rate_w
 
     def optimize_theta(self, W_su, R_init):
@@ -81,6 +82,7 @@ class RISAlternatingOptimization:
             self.S, self.U, self.N, self.M, h_su_t, H_sR_t, g_Ru_t, W_su_t, theta_t, R_init, self.sigma2
         )
         theta, rate_phi = PhiOptimization.optimize_theta()
+        # PhiOptimization.plot_rate(rate_phi)
         return theta, rate_phi
 
     def compute_Sinr_Rsum(self, W_su):
@@ -222,6 +224,7 @@ def main_service():
     sigo = []
     Rate_list = []
     T_list = range(0, 1000, 15)
+    # T_list = [150]
     for t in T_list:
         print(f'当前时间：{t}')
 
@@ -370,7 +373,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    main_service()
+    # main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
     # M1_range = range(0, 800, 50)
-    # analyze_M_impact(time=260,  M1_range = [0, 4, 8, 16, 24, 32, 48, 64, 72, 96])
+    analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])

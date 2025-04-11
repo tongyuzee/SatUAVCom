@@ -181,6 +181,41 @@ class FindPhi_GA:
         
         plt.show()
 
+    def plot_rate(self, rate):
+        """绘制和速率随迭代次数的变化"""
+        cm_to_inch = 1/2.54
+        fig_width_cm = 15  # 宽度，厘米
+        fig_height_cm = 12  # 高度，厘米
+        fig, ax = plt.subplots(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
+        # plt.figure(figsize=(8, 6))
+        plt.plot(rate, color='#1d73b6', linewidth=2)
+        plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
+        plt.xlabel('Iterations', fontsize=14)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.grid(True)
+
+        # 设置框和刻度线 - 类似Matlab的box on
+        ax.spines['top'].set_visible(True)
+        ax.spines['right'].set_visible(True)
+        
+        # 设置刻度线朝内并出现在所有四个边上
+        ax.tick_params(axis='both', which='both', direction='in', 
+                top=True, bottom=True, left=True, right=True)
+        
+        # 还可以设置次刻度线
+        from matplotlib.ticker import AutoMinorLocator
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        # 创建保存目录
+        if not os.path.exists('fig'):
+            os.makedirs('fig')
+        plt.tight_layout()
+        plt.savefig('fig/FindPhi_GA.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig('fig/FindPhi_GA.svg', format='svg', bbox_inches='tight')
+        plt.savefig('fig/FindPhi_GA.png', dpi=300, bbox_inches='tight')
+        plt.show()
+
 # 创建实例并运行
 if __name__ == "__main__":
     S = 2  # 卫星数量
