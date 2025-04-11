@@ -6,7 +6,7 @@ from matplotlib import rc
 import pylustrator
 
 # 开启pylustrator 
-pylustrator.start()
+# pylustrator.start()
 
 # 启用 LaTeX 渲染
 # rc('text', usetex=True)
