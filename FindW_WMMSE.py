@@ -249,6 +249,9 @@ class FindW_WMMSE:
     
     def plot_rate(self, rate):
         """绘制和速率随迭代次数的变化"""
+        if not os.path.exists('data'):
+            os.makedirs('data')
+        np.save(f'data/FindW_WMMSE.npy', np.array(rate))
         cm_to_inch = 1/2.54
         fig_width_cm = 15  # 宽度，厘米
         fig_height_cm = 12  # 高度，厘米

@@ -140,6 +140,7 @@ class RISAlternatingOptimization:
                 print(f'迭代次数: {iter:03d}, FindW: iter={len(rate_w):03d}, rate_w={rate_w[-1]:016.12f}')
                 if iter > 0 and abs(self.Rate[-1] - self.Rate[-2]) < 1e-4 :
                     break
+        # np.save(f'data/AO_rate_1e6.npy', self.Rate)
         return sigout, self.Rate[-1], self.W_su, self.theta
 
     def plot_results(self):
@@ -223,8 +224,8 @@ def main_service():
 
     sigo = []
     Rate_list = []
-    T_list = range(0, 1000, 15)
-    # T_list = [150]
+    # T_list = range(0, 1000, 15)
+    T_list = [150]
     for t in T_list:
         print(f'当前时间：{t}')
 
@@ -373,7 +374,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    # main_service()
+    main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
     # M1_range = range(0, 800, 50)
-    analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+    # analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])

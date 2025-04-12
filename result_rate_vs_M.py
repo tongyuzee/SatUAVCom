@@ -27,7 +27,7 @@ plt.rcParams['axes.titlesize'] = 14
 
 def plot_rate_vs_M(file_path='data/rate_vs_M.npz', output_name='rate_vs_M_plot', 
                    color='#1d73b6', marker='o', line_style='-', add_annotations=True,
-                   xlabel=r'Number of RIS Elements, $\sqrt{M} $', 
+                   xlabel=r'Number of RIS Elements $\sqrt{M} $', 
                    ylabel='Sum Rate (bps/Hz)'
                    ):
     """
