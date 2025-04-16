@@ -8,7 +8,7 @@ plt.rcParams['font.size'] = 14
 plt.rcParams['figure.autolayout'] = True
 plt.rcParams['axes.titlesize'] = 14
 
-def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, styles=None, markers=None):
+def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, markerfacecolors=None, styles=None, markers=None):
     """
     读取并比较多个速率数据文件
     
@@ -31,6 +31,8 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
         styles = ['-', '--', '-.', ':', '-', '--', '-.', ':']
     if markers is None:
         markers = ['o', 's', '^', 'D', 'x', '+', '*', 'P']
+    if markerfacecolors is None:
+        markerfacecolors = colors.copy()
     
     # 确保颜色和样式足够
     while len(colors) < len(files):
@@ -74,7 +76,7 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
         # 绘制曲线
         plt.plot(T_list, rate_list, 
                  color=colors[i], linestyle=styles[i], linewidth=2, 
-                 marker=markers[i], markeredgecolor=colors[i], markersize=6,  markeredgewidth=2,
+                 marker=markers[i], markeredgecolor=colors[i], markersize=6, markeredgewidth=2, markerfacecolor=markerfacecolors[i],
                  label=label
                  )
     
@@ -130,17 +132,21 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
 
 if __name__ == "__main__":
     compare_rates(
-        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with optimised-phase elements',
-        'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with random-phase elements',
-        'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
-        output_name="RIS_comparison",
-        colors=['#1d73b6', '#24a645', '#f27830'],
-        # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-ssisted dual-SAT',
-        # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-ssisted SAT1',
-        # 'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-ssisted SAT2',
-        # output_name="SAT_comparison",
+        # 'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS with optimised-phase elements',
+        # 'data/Whole_Service_S2_U3_N4_M6400_Random1.npy', 'RIS with random-phase elements',
+        # 'data/Whole_Service_S2_U3_N4_M0_Random0.npy', 'RIS without elements',
+        # output_name="RIS_comparison",
         # colors=['#1d73b6', '#24a645', '#f27830'],
-        time_interval=15,
+        # markerfacecolors=['#1d73b6', '#24a645', '#f27830'],
+        # styles=['-', '--', '--'],
+        # markers=['o', 'o', '+' ],
+        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-ssisted dual-satellite',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-ssisted satellite S1',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-ssisted satellite S2',
+        output_name="SAT_comparison",
+        colors=['#1d73b6', '#24a645', '#f27830'],
+        markerfacecolors=['#1d73b6', 'none', 'none'],
         styles=['-', '--', '--'],
-        markers=['o', 'o', '+' ]
+        markers=['o', 'o', 'o' ],
+        time_interval=15
     )

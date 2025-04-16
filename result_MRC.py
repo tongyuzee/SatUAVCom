@@ -121,7 +121,7 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
 if __name__ == "__main__":
     compare_rates_dual_axis(
         'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'WMMSE',
-        'data/Whole_Service_S2_U3_N4_M6400_Random0_MRC1.npy', 'MRC',
+        'data/Whole_Service_S2_U3_N4_M6400_Random0_MRC1.npy', 'MRT',
         time_interval=15,
         output_name="WMMSE_MRC_Comparison",
         color1='#1d73b6ff',  # 蓝色
@@ -130,6 +130,6 @@ if __name__ == "__main__":
         style2='--',
         marker1='o', 
         marker2='o',
-        ylim1=[6.5, 12.5],  # 左侧y轴范围
-        ylim2=[1.7515, 1.7575]   # 右侧y轴范围
+        ylim1=[6.6, 12.6],  # 左侧y轴范围
+        ylim2=[1.7516, 1.7576]   # 右侧y轴范围
     )
