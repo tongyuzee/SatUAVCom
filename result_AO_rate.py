@@ -104,8 +104,9 @@ def plot_AO_rate_with_error(file_path='data/rate_vs_M.npz', output_name='rate_vs
     # 添加网格线 (仅适用于左轴)
     ax1.grid(True, alpha=0.3)
 
-    ax1.set_ylim([11.0,12.2])
-    ax2.set_ylim([1e-6,1])
+    ax1.set_xlim([-0.2, len(data)-0.8])
+    ax1.set_ylim([11.0,12.25])
+    ax2.set_ylim([1e-6,10**(1/4)])
     
     # 设置框和刻度线 - 类似Matlab的box on
     ax1.spines['top'].set_visible(True)

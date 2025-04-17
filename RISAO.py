@@ -293,6 +293,7 @@ def analyze_M_impact(time=200, M1_range=None):
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
+    Rphi = True  # 随机初始化相位
     P_s = 1  # 发射功率 波束形成向量的约束
     PowerdB = 70  # 发射功率(dBm)
     Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
@@ -329,7 +330,7 @@ def analyze_M_impact(time=200, M1_range=None):
         
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, rate, _, _ = system.run_optimization()
+        sigout, rate, _, _ = system.run_optimization(RandomPhi=Rphi)
         # system.plot_results()
         rate_vs_M.append(rate)
         sigoot_vs_M.append(sigout)
@@ -338,7 +339,7 @@ def analyze_M_impact(time=200, M1_range=None):
     if not os.path.exists('data'):
         os.makedirs('data')
     results = {'M_values': M1_range, 'Rate_values': rate_vs_M}
-    np.savez('data/rate_vs_M.npz', **results)
+    np.savez(f'data/rate_vs_M_Random{Rphi:d}.npz', **results)
     
     # 绘制结果
     plt.figure(figsize=(8, 6))
@@ -357,9 +358,9 @@ def analyze_M_impact(time=200, M1_range=None):
     if not os.path.exists('fig'):
         os.makedirs('fig')
     plt.tight_layout()
-    plt.savefig('fig/rate_vs_M.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig('fig/rate_vs_M.png', dpi=300, bbox_inches='tight')
-    plt.savefig('fig/rate_vs_M.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.svg', format='svg', bbox_inches='tight')
     plt.show()
     return M1_range, rate_vs_M
 
@@ -374,7 +375,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    main_service()
+    # main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
     # M1_range = range(0, 800, 50)
-    # analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+    analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])

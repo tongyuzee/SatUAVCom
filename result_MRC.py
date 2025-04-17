@@ -47,7 +47,7 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
         rate_list2 = rate_list2[idx2]
 
     cm_to_inch = 1/2.54
-    fig_width_cm = 16  # 宽度，厘米
+    fig_width_cm = 15  # 宽度，厘米
     fig_height_cm = 12  # 高度，厘米
     # 创建双轴图形
     fig, ax1 = plt.subplots(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))

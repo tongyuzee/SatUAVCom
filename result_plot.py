@@ -8,7 +8,7 @@ plt.rcParams['font.size'] = 14
 plt.rcParams['figure.autolayout'] = True
 plt.rcParams['axes.titlesize'] = 14
 
-def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, markerfacecolors=None, styles=None, markers=None):
+def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comparison", colors=None, markerfacecolors=None, styles=None, markers=None, ylims=None):
     """
     读取并比较多个速率数据文件
     
@@ -100,8 +100,9 @@ def compare_rates(*args, time_interval=10, max_time=None, output_name="rate_comp
     ax.yaxis.set_minor_locator(AutoMinorLocator())
 
     # 优化Y轴范围，留出一点边距
-    padding = (max_rate - min_rate) * 0.05
-    plt.ylim([min_rate - padding, max_rate + padding])
+    # padding = (max_rate - min_rate) * 0.05
+    # plt.ylim([min_rate - padding, max_rate + padding])
+    plt.ylim(ylims)
     
     # 创建 fig 目录（如果不存在）
     if not os.path.exists('fig'):
@@ -140,13 +141,15 @@ if __name__ == "__main__":
         # markerfacecolors=['#1d73b6', '#24a645', '#f27830'],
         # styles=['-', '--', '--'],
         # markers=['o', 'o', '+' ],
-        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-ssisted dual-satellite',
-        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-ssisted satellite S1',
-        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-ssisted satellite S2',
+        # ylims=[7.6, 12.6],
+        'data/Whole_Service_S2_U3_N4_M6400_Random0.npy', 'RIS-enabled dual-satellite',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_R.npy', 'RIS-enabled satellite S1',
+        'data/Whole_Service_S1_U3_N4_M6400_Random0_MRC0_L.npy', 'RIS-enabled satellite S2',
         output_name="SAT_comparison",
         colors=['#1d73b6', '#24a645', '#f27830'],
         markerfacecolors=['#1d73b6', 'none', 'none'],
         styles=['-', '--', '--'],
         markers=['o', 'o', 'o' ],
+        ylims=[7.6, 12.6],
         time_interval=15
     )
