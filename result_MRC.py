@@ -82,7 +82,8 @@ def compare_rates_dual_axis(file1, label1, file2, label2, time_interval=10, max_
     
     # 设置刻度线朝内并出现在所有四个边上
     ax1.tick_params(axis='both', which='both', direction='in', 
-               top=True, bottom=True, left=True, right=True)
+                    top=True, bottom=True, left=True, right=True)
+    ax2.tick_params(axis='y', which='both', direction='in', right=True)
     
     # 还可以设置次刻度线
     from matplotlib.ticker import AutoMinorLocator
