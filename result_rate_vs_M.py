@@ -58,13 +58,17 @@ def plot_rate_vs_M_comparison(file_path1='data/rate_vs_M_Random0.npz',
     # 加载数据
     data1 = np.load(file_path1)
     data2 = np.load(file_path2)
-    
+
     M_values1 = data1['M_values']
     Rate_values1 = data1['Rate_values']
     
     M_values2 = data2['M_values']
     Rate_values2 = data2['Rate_values']
-    
+
+    # 无RIS的数据
+    M_values3 = M_values1
+    Rate_values3 = np.ones(len(Rate_values1)) * Rate_values1[0]
+
     # 设置图像大小（厘米转英寸）
     cm_to_inch = 1/2.54
     fig_width_cm = 15  # 宽度，厘米
@@ -80,6 +84,11 @@ def plot_rate_vs_M_comparison(file_path1='data/rate_vs_M_Random0.npz',
     plt.plot(M_values2, Rate_values2, marker=marker2, linestyle=line_style2, 
              color=color2, linewidth=2, markersize=6, markeredgewidth=2,
              markerfacecolor='none', label=label2)
+    
+    # 绘制第三条曲线
+    plt.plot(M_values3, Rate_values3, linestyle=':', 
+             color='#f27830', linewidth=2, 
+             label='Without RIS')
     
     # 添加标签
     plt.xlabel(xlabel, fontsize=14)
