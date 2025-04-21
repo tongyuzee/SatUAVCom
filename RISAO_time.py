@@ -85,16 +85,16 @@ class RISAlternatingOptimization:
         # PhiOptimization.plot_rate(rate_phi)
         return theta, rate_phi
 
-    def compute_Sinr_Rsum(self, W_su):
+    def compute_Sinr_Rsum(self, h_su, H_sR, g_Ru, W_su, theta):
         """计算SINR和和速率"""
-        exp_j_theta = np.exp(1j * self.theta)
+        exp_j_theta = np.exp(1j * theta)
         Phi = np.diag(exp_j_theta)  # RIS相位矩阵，size: M x M
         SINR = np.zeros(self.U)
         sigout = np.zeros(self.U, dtype=complex)
         for u in range(self.U):
             signal = 0
             for s in range(self.S):
-                equiv_channel = self.h_su[u, s, :] + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
+                equiv_channel = h_su[u, s, :] + g_Ru[u, :] @ Phi @ H_sR[s, :, :].T
                 signal += np.vdot(equiv_channel, W_su[u, s, :])
             sigout[u] = signal
             signal_power = np.abs(signal) ** 2
@@ -103,7 +103,7 @@ class RISAlternatingOptimization:
                 if u_prime != u:
                     interf = 0
                     for s in range(self.S):
-                        equiv_channel = self.h_su[u, s, :] + self.g_Ru[u, :] @ Phi @ self.H_sR[s, :, :].T
+                        equiv_channel = h_su[u, s, :] + g_Ru[u, :] @ Phi @ H_sR[s, :, :].T
                         interf += np.vdot(equiv_channel, W_su[u_prime, s, :])
                     interference_power += np.abs(interf) ** 2
             SINR[u] = signal_power / (interference_power + self.sigma2)
@@ -122,12 +122,12 @@ class RISAlternatingOptimization:
             for u in range(self.U):
                 for s in range(self.S):
                     self.W_su[u, s, :] = W_opt[s * self.N:(s + 1) * self.N, u]
-            sigout, _, R_w = self.compute_Sinr_Rsum(self.W_su)
+            sigout, _, R_w = self.compute_Sinr_Rsum(self.h_su, self.H_sR, self.g_Ru, self.W_su, self.theta)
             self.Rate.append(R_w)
             if self.M > 0 and RandomPhi == False:  # 如果有RIS元素，则优化相位
                 theta, rate_phi = self.optimize_theta(self.W_su, R_w)  # R_init=0，与原代码一致
                 self.theta = theta
-                sigout, _, R_phi = self.compute_Sinr_Rsum(self.W_su)
+                sigout, _, R_phi = self.compute_Sinr_Rsum(self.h_su, self.H_sR, self.g_Ru, self.W_su, self.theta)
                 self.Rate.append(R_phi)
                 if MRCw:
                     print(f'迭代次数: {iter:03d}, FindW: MRCw, rate_w={R_w:016.12f}, FindPhi: iter={len(rate_phi):03d}, rate_phi={rate_phi[-1]:016.12f}')
@@ -202,8 +202,9 @@ class RISAlternatingOptimization:
         # plt.close()
 
 def main_service():
-    """主函数：设置参数并运行优化"""
+    """主函数：设置参数并运行优化，并存储预编码矩阵和相位信息"""
     set_seed(42)
+    dt = 3  # 延时
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
@@ -214,28 +215,34 @@ def main_service():
     PowerdB = 70  # 发射功率(dBm)
     Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
     A = np.sqrt(Power)  # 幅度增益
-    # sigma2 = 1e-16  # 噪声方差
     gain_factor = 1e4  # 增益因子
 
     N0 = -85  # dBm/Hz
-    # B = 20e6 # 20MHz
     B = 1
     N0 = 10 ** (N0 / 10) / 1000 * B  # 噪声功率转换为瓦特
 
     sigo = []
     Rate_list = []
-    # T_list = range(0, 1000, 15)
-    T_list = [150]
+    Rate_dt_list = []
+    
+    # 创建存储预编码矩阵和相位的列表
+    W_su_all = []  # 存储所有时刻的预编码矩阵
+    theta_all = []  # 存储所有时刻的相位
+    
+    T_list = range(0, 1000, 15)
+    time_steps = []  # 记录有效时间步
+    time_steps_dt = []
+    
     for t in T_list:
         print(f'当前时间：{t}')
 
-        if t == 160:
-            xxx = 10  # 用于调试
-            pass # 用于调试
-
         # 生成信道矩阵
-        Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
-        h_su, H_sR, g_Ru= Sat_UAV_comm.setup_channel()
+        try:
+            Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t, U, S, N, M)
+            h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
+        except Exception as e:
+            print(f"在时间 t={t} 生成信道发生错误: {e}")
+            continue
 
         if t >= Sat_UAV_comm.TT:
             break
@@ -245,37 +252,135 @@ def main_service():
         H_sR = np.conj(H_sR)
         g_Ru = np.conj(g_Ru)
 
-        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变。
+        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变
         h_su = h_su * A * gain_factor 
         H_sR = H_sR * A * gain_factor
         sigma2 = N0 * gain_factor ** 2
-        # sigma2 = 0.1  # 噪声方差
 
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, Rate, _, _ = system.run_optimization(RandomPhi=Rphi, MRCw=MRCw)  # 随机初始化相位
-        # system.plot_results()
-        # sigout, Rate, _, _ = run(t, U, S, N, M, P_s, gain_factor)
+        sigout, Rate, W_su_dt, theta_dt = system.run_optimization(RandomPhi=Rphi, MRCw=MRCw)  
+
+        # 存储预编码矩阵和相位
+        W_su_all.append(W_su_dt.copy())
+        theta_all.append(theta_dt.copy())
+
+        # 生成新的信道矩阵dt
+        try:
+            Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(t+dt, U, S, N, M)
+            h_su_dt, H_sR_dt, g_Ru_dt = Sat_UAV_comm.setup_channel()
+        except Exception as e:
+            print(f"在时间 t={t+dt} 生成信道发生错误: {e}")
+            continue
+            
+        # 在通信系统中，信号功率通常是∣h^H w∣^2 
+        h_su_dt = np.conj(h_su_dt)
+        H_sR_dt = np.conj(H_sR_dt)
+        g_Ru_dt = np.conj(g_Ru_dt)
+
+        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变
+        h_su_dt = h_su_dt * A * gain_factor 
+        H_sR_dt = H_sR_dt * A * gain_factor
+        sigma2 = N0 * gain_factor ** 2
+        
+        sigout_dt, _, Rate_dt = system.compute_Sinr_Rsum(h_su_dt, H_sR_dt, g_Ru_dt, W_su_dt, theta_dt)
+
         sigo.append(sigout)
         Rate_list.append(Rate)
+        Rate_dt_list.append(Rate_dt)
+        time_steps.append(t)
+        time_steps_dt.append(t+dt)
+        
+        print(f'当前时间：{t}, Rate:{Rate:016.12f}, Rate_dt:{Rate_dt:016.12f}')
 
+    # 创建数据目录（如果不存在）
     if not os.path.exists('data'):
-            os.makedirs('data')
-    # 保存 Rate_list 数据
-    np.save(f'data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.npy', np.array(Rate_list))
+        os.makedirs('data')
+    
+    # 保存和速率数据
+    np.save(f'data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy', np.array(Rate_dt_list))
+    
+    # 保存预编码矩阵和相位数据
+    # 将预编码矩阵转换为numpy数组
+    W_su_array = np.array(W_su_all)
+    theta_array = np.array(theta_all)
+    time_array = np.array(time_steps)
+    
+    # 保存数据到文件
+    data_dict = {
+        'times': time_array,
+        'W_su': W_su_array,
+        'theta': theta_array,
+        'Rate': np.array(Rate_list),
+        'Rate_dt': np.array(Rate_dt_list)
+    }
+    
+    # 使用np.savez保存多个数组到一个文件
+    np.savez(f'data/Precoding_Params_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npz', **data_dict)
+    
+    # 单独保存预编码矩阵和相位，以防需要单独访问
+    np.save(f'data/W_su_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy', W_su_array)
+    np.save(f'data/theta_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy', theta_array)
+    
+    # 保存系统配置参数，便于后续分析
+    config_dict = {
+        'S': S,
+        'U': U,
+        'N': N,
+        'M': M,
+        'dt': dt,
+        'Rphi': Rphi,
+        'MRCw': MRCw,
+        'PowerdB': PowerdB,
+        'gain_factor': gain_factor,
+        'N0_dBm': -85
+    }
+    np.savez(f'data/config_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npz', **config_dict)
 
-    plt.figure(figsize=(8, 6))
-    plt.plot(T_list[0:len(Rate_list)], Rate_list)
-    plt.ylabel('Sum Rate')
-    plt.xlabel('Service time')
-    plt.grid(True)
+    # 绘制结果
+    cm_to_inch = 1/2.54
+    fig_width_cm = 15  # 宽度，厘米
+    fig_height_cm = 12  # 高度，厘米
+    plt.figure(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
+    plt.plot(time_steps, Rate_list, 'o-', linewidth=2, markersize=6, label='Optimal Rate (t)', color='#1d73b6')
+    plt.plot(time_steps_dt, Rate_dt_list, 's--', linewidth=2, markersize=6, label=f'Delayed Rate (t+{dt})', color='#24a645')
+    plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
+    plt.xlabel('Service Time (s)', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=14)
+    
+    # 设置框和刻度线 - 类似Matlab的box on
+    ax = plt.gca()
+    ax.spines['top'].set_visible(True)
+    ax.spines['right'].set_visible(True)
+    
+    # 设置刻度线朝内并出现在所有四个边上
+    ax.tick_params(axis='both', which='both', direction='in', 
+                  top=True, bottom=True, left=True, right=True)
+    
+    # 添加次刻度线
+    from matplotlib.ticker import AutoMinorLocator
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    
+    # 创建图形目录
     if not os.path.exists('fig'):
-            os.makedirs('fig')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.svg', format='svg', bbox_inches='tight')
-    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_L.png', dpi=300, bbox_inches='tight')
+        os.makedirs('fig')
+        
+    # 保存图形
+    plt.tight_layout()
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.svg', format='svg', bbox_inches='tight')
+    plt.savefig(f'fig/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.png', dpi=300, bbox_inches='tight')
     plt.show()
-
+    
+    print(f"\n模拟完成。预编码矩阵和相位参数已保存到data目录。")
+    print(f"保存的文件:")
+    print(f"1. 和速率数据: data/Whole_Service_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy")
+    print(f"2. 预编码参数: data/Precoding_Params_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npz")
+    print(f"3. 预编码矩阵: data/W_su_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy")
+    print(f"4. 相位参数: data/theta_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npy")
+    print(f"5. 系统配置: data/config_S{S}_U{U}_N{N}_M{M}_Random{Rphi:d}_MRC{MRCw:d}_dt{dt}.npz")
 
 def analyze_M_impact(time=200, M1_range=None):
     """
@@ -293,7 +398,6 @@ def analyze_M_impact(time=200, M1_range=None):
     S = 2  # 卫星数量
     U = 3  # 无人机数量
     N = 4  # 天线数量
-    Rphi = True  # 随机初始化相位
     P_s = 1  # 发射功率 波束形成向量的约束
     PowerdB = 70  # 发射功率(dBm)
     Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
@@ -330,7 +434,7 @@ def analyze_M_impact(time=200, M1_range=None):
         
         # 实例化并运行优化
         system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, rate, _, _ = system.run_optimization(RandomPhi=Rphi)
+        sigout, rate, _, _ = system.run_optimization()
         # system.plot_results()
         rate_vs_M.append(rate)
         sigoot_vs_M.append(sigout)
@@ -339,7 +443,7 @@ def analyze_M_impact(time=200, M1_range=None):
     if not os.path.exists('data'):
         os.makedirs('data')
     results = {'M_values': M1_range, 'Rate_values': rate_vs_M}
-    np.savez(f'data/rate_vs_M_Random{Rphi:d}.npz', **results)
+    np.savez('data/rate_vs_M.npz', **results)
     
     # 绘制结果
     plt.figure(figsize=(8, 6))
@@ -358,256 +462,11 @@ def analyze_M_impact(time=200, M1_range=None):
     if not os.path.exists('fig'):
         os.makedirs('fig')
     plt.tight_layout()
-    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(f'fig/rate_vs_M_Random{Rphi:d}.svg', format='svg', bbox_inches='tight')
+    plt.savefig('fig/rate_vs_M.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig('fig/rate_vs_M.png', dpi=300, bbox_inches='tight')
+    plt.savefig('fig/rate_vs_M.svg', format='svg', bbox_inches='tight')
     plt.show()
     return M1_range, rate_vs_M
-
-def analyze_N_impact(time=150, N_range=None):
-    """
-    分析固定时刻下和速率随卫星天线数目N的变化
-    
-    参数:
-        time: 固定的时间点
-        N_range: 天线数量范围，默认为[1, 2, 4, 8, 16, 32]
-    """
-    set_seed(42)  # 保证结果可重现
-    
-    if N_range is None:
-        N_range = [1, 2, 4, 8, 16, 32]
-    
-    S = 2  # 卫星数量
-    U = 3  # 无人机数量
-    M = 6400  # RIS单元数量
-    Rphi = False  # 是否使用随机相位
-    P_s = 1  # 发射功率 波束形成向量的约束
-    PowerdB = 70  # 发射功率(dBm)
-    Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
-    A = np.sqrt(Power)  # 幅度增益
-    gain_factor = 1e4  # 增益因子
-    
-    N0 = -85  # dBm/Hz
-    B = 1
-    N0 = 10 ** (N0 / 10) / 1000 * B  # 噪声功率转换为瓦特
-
-    sigout_vs_N = []
-    rate_vs_N = []
-    print(f"分析时刻 t={time} 下和速率随天线数量N的变化关系")
-    
-    for N in N_range:
-        print(f"正在计算 N={N} 的和速率...")
-        
-        # 生成信道矩阵
-        Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(time, U, S, N, M)
-        h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
-        
-        # 在通信系统中，信号功率通常是∣h^H w∣^2 
-        h_su = np.conj(h_su)
-        H_sR = np.conj(H_sR)
-        g_Ru = np.conj(g_Ru)
-        
-        # 信道矩阵放大n倍，噪声功率放大n^2倍，SINR不变，优化结果不变
-        h_su = h_su * A * gain_factor 
-        H_sR = H_sR * A * gain_factor
-        sigma2 = N0 * gain_factor ** 2
-        
-        # 实例化并运行优化
-        system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-        sigout, rate, _, _ = system.run_optimization(RandomPhi=Rphi)
-        rate_vs_N.append(rate)
-        sigout_vs_N.append(sigout)
-    
-    # 保存数据
-    if not os.path.exists('data'):
-        os.makedirs('data')
-    results = {'N_values': N_range, 'Rate_values': rate_vs_N}
-    np.savez(f'data/rate_vs_N_M{M}_Random{Rphi:d}.npz', **results)
-    
-    # 绘制结果
-    cm_to_inch = 1/2.54
-    fig_width_cm = 15  # 宽度，厘米
-    fig_height_cm = 12  # 高度，厘米
-    plt.figure(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
-    plt.plot(N_range, rate_vs_N, 'o-', linewidth=2, markersize=6, color='#1d73b6')
-    plt.xlabel('Number of Antennas (N)', fontsize=14)
-    plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
-    plt.grid(True, alpha=0.3)
-    
-    # 在每个点上标注具体数值
-    for i, (n, r) in enumerate(zip(N_range, rate_vs_N)):
-        plt.annotate(f'{r:.2f}', xy=(n, r), xytext=(0, 8), 
-                    textcoords='offset points', ha='center', fontsize=10)
-    
-    # 设置框和刻度线 - 类似Matlab的box on
-    ax = plt.gca()
-    ax.spines['top'].set_visible(True)
-    ax.spines['right'].set_visible(True)
-    
-    # 设置刻度线朝内并出现在所有四个边上
-    ax.tick_params(axis='both', which='both', direction='in', 
-                  top=True, bottom=True, left=True, right=True)
-    
-    # 添加次刻度线
-    from matplotlib.ticker import AutoMinorLocator
-    ax.xaxis.set_minor_locator(AutoMinorLocator())
-    ax.yaxis.set_minor_locator(AutoMinorLocator())
-    
-    # 保存图表
-    if not os.path.exists('fig'):
-        os.makedirs('fig')
-    plt.tight_layout()
-    plt.savefig(f'fig/rate_vs_N_M{M}_Random{Rphi:d}.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/rate_vs_N_M{M}_Random{Rphi:d}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(f'fig/rate_vs_N_M{M}_Random{Rphi:d}.svg', format='svg', bbox_inches='tight')
-    plt.show()
-    
-    print("和速率-天线数量分析完成")
-    for i, (n, r) in enumerate(zip(N_range, rate_vs_N)):
-        print(f"N = {n}: 和速率 = {r:.4f} bps/Hz")
-    
-    return N_range, rate_vs_N
-
-
-def analyze_power_impact(time=150, N_values=[4, 16, 64], PowerdB_range=None):
-    """
-    分析固定时刻下不同天线数量N时和速率随发射功率的变化
-    
-    参数:
-        time: 固定的时间点
-        N_values: 要分析的天线数量列表，默认为[4, 16, 64]
-        PowerdB_range: 发射功率范围(dBm)，默认为[40, 50, 60, 70, 80, 90]
-    """
-    set_seed(42)  # 保证结果可重现
-    
-    if PowerdB_range is None:
-        PowerdB_range = [40, 50, 60, 70, 80, 90]
-    
-    S = 2  # 卫星数量
-    U = 3  # 无人机数量
-    M = 6400  # RIS单元数量
-    Rphi = False  # 是否使用随机相位
-    P_s = 1  # 发射功率归一化约束
-    gain_factor = 1e4  # 增益因子
-    
-    N0 = -85  # dBm/Hz
-    B = 1  # 带宽
-    N0_watt = 10 ** (N0 / 10) / 1000 * B  # 噪声功率转换为瓦特
-    
-    # 存储不同N值下的结果
-    rates_dict = {}
-    
-    # 创建图表
-    cm_to_inch = 1/2.54
-    fig_width_cm = 15  # 宽度，厘米
-    fig_height_cm = 12  # 高度，厘米
-    plt.figure(figsize=(fig_width_cm*cm_to_inch, fig_height_cm*cm_to_inch))
-    
-    # 颜色和标记样式
-    colors = ['#1d73b6', '#24a645', '#f27830']  # 蓝色, 绿色, 橙色
-    markers = ['o', 's', '^']
-    
-    for idx, N in enumerate(N_values):
-        print(f"\n分析天线数量 N={N} 下和速率随发射功率的变化关系")
-        
-        # 为每个N值存储速率结果
-        rate_vs_power = []
-        
-        for PowerdB in PowerdB_range:
-            print(f"  正在计算 PowerdB={PowerdB} dBm 时的和速率...")
-            
-            # 转换dBm到线性值
-            Power = 10 ** (PowerdB / 10) / 1000  # 转换为瓦特
-            A = np.sqrt(Power)  # 幅度增益
-            
-            # 生成信道矩阵
-            Sat_UAV_comm = RISSatUAVCom.RISSatUAVCom(time, U, S, N, M)
-            h_su, H_sR, g_Ru = Sat_UAV_comm.setup_channel()
-            
-            # 在通信系统中，信号功率通常是∣h^H w∣^2 
-            h_su = np.conj(h_su)
-            H_sR = np.conj(H_sR)
-            g_Ru = np.conj(g_Ru)
-            
-            # 信道矩阵放大，噪声功率相应调整
-            h_su = h_su * A * gain_factor 
-            H_sR = H_sR * A * gain_factor
-            sigma2 = N0_watt * gain_factor ** 2
-            
-            # 实例化并运行优化
-            system = RISAlternatingOptimization(S, U, N, M, P_s, sigma2, h_su, H_sR, g_Ru)
-            _, rate, _, _ = system.run_optimization(RandomPhi=Rphi)
-            rate_vs_power.append(rate)
-        
-        # 保存结果
-        rates_dict[N] = rate_vs_power
-        
-        # 绘制该N值的曲线
-        plt.plot(PowerdB_range, rate_vs_power, 
-                 marker=markers[idx], linestyle='-', color=colors[idx], 
-                 linewidth=2, markersize=6, markeredgewidth=2,
-                 label=f'N = {N}')
-    
-    # 保存数据
-    if not os.path.exists('data'):
-        os.makedirs('data')
-    
-    results = {
-        'PowerdB_range': PowerdB_range,
-    }
-    
-    # 将每个N值的结果添加到字典中
-    for N in N_values:
-        results[f'Rate_N{N}'] = rates_dict[N]
-    
-    np.savez(f'data/rate_vs_power_N{N_values[0]}_{N_values[-1]}_t{time}.npz', **results)
-    
-    # 完善图表样式
-    plt.xlabel('Transmit Power (dBm)', fontsize=14)
-    plt.ylabel('Sum Rate (bps/Hz)', fontsize=14)
-    plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=14)
-    
-    # 设置框和刻度线 - 类似Matlab的box on
-    ax = plt.gca()
-    ax.spines['top'].set_visible(True)
-    ax.spines['right'].set_visible(True)
-    
-    # 设置刻度线朝内并出现在所有四个边上
-    ax.tick_params(axis='both', which='both', direction='in', 
-                  top=True, bottom=True, left=True, right=True)
-    
-    # 添加次刻度线
-    from matplotlib.ticker import AutoMinorLocator
-    ax.xaxis.set_minor_locator(AutoMinorLocator())
-    ax.yaxis.set_minor_locator(AutoMinorLocator())
-    
-    # 保存图表
-    if not os.path.exists('fig'):
-        os.makedirs('fig')
-    plt.tight_layout()
-    
-    fig_name = f'rate_vs_power_N{N_values[0]}_{N_values[-1]}_t{time}'
-    plt.savefig(f'fig/{fig_name}.pdf', format='pdf', bbox_inches='tight')
-    plt.savefig(f'fig/{fig_name}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(f'fig/{fig_name}.svg', format='svg', bbox_inches='tight')
-    plt.show()
-    
-    # 打印结果统计
-    print("\n==== 结果统计 ====")
-    for N in N_values:
-        print(f"\nN = {N} 天线:")
-        for i, PowerdB in enumerate(PowerdB_range):
-            print(f"  功率 = {PowerdB} dBm: 和速率 = {rates_dict[N][i]:.4f} bps/Hz")
-        
-        # 计算功率增益
-        min_rate = rates_dict[N][0]
-        max_rate = rates_dict[N][-1]
-        gain = (max_rate - min_rate) / min_rate * 100
-        print(f"  功率从 {PowerdB_range[0]} dBm 增加到 {PowerdB_range[-1]} dBm:")
-        print(f"  和速率提升: {max_rate - min_rate:.4f} bps/Hz ({gain:.2f}%)")
-    
-    return PowerdB_range, rates_dict
 
 def set_seed(seed):
     """全局设置随机种子"""
@@ -620,14 +479,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 if __name__ == "__main__":
-    # main_service()
+    main_service()
     # analyze_M_impact(time=260, M_range=[16, 64, 256, 1024, 4096])
     # M1_range = range(0, 800, 50)
     # analyze_M_impact(time=150,  M1_range = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
-    # analyze_N_impact(time=150, N_range=[4, 8, 16, 32, 64])
-    # 分析不同天线数量时和速率随功率的变化
-    analyze_power_impact(
-    time=150,
-    N_values=[4, 16, 64],
-    PowerdB_range=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-    )
