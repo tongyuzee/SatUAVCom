@@ -86,8 +86,8 @@ def plot_rate_vs_M_comparison(file_path1='data/rate_vs_M_Random0.npz',
              markerfacecolor='none', label=label2)
     
     # 绘制第三条曲线
-    plt.plot(M_values3, Rate_values3, linestyle=':', 
-             color='#f27830', linewidth=2, 
+    plt.plot(M_values3, Rate_values3, linestyle='--', 
+             color='#898989', linewidth=2, 
              label='Without RIS')
     
     # 添加标签
